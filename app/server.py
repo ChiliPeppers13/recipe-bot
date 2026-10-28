@@ -105,6 +105,25 @@ class Handler(BaseHTTPRequestHandler):
         # единый путь данных для аппа: /recipes/<id>.json (тот же, что на GitHub Pages)
         if path.startswith("/recipes/"):
             name = path[len("/recipes/"):]
+            if name == "index.json":                     # список для «книги рецептов»
+                items = []
+                for f in sorted(STORE.glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True):
+                    try:
+                        r = json.loads(f.read_text(encoding="utf-8"))
+                    except Exception:
+                        continue
+                    s = r.get("source") or {}
+                    items.append({
+                        "id": f.stem,
+                        "title": r.get("title") or "Без названия",
+                        "emoji": r.get("emoji") or "🍽",
+                        "time_min": r.get("time_min"),
+                        "steps": len(r.get("steps") or []),
+                        "platform": s.get("platform") or "",
+                        "thumb": s.get("thumbnail") or "",
+                        "added": int(f.stat().st_mtime),
+                    })
+                return self._json(items)
             rid = latest_id() if name == "latest.json" else name.rsplit(".json", 1)[0]
             recipe = find_recipe(rid) if rid else None
             return self._json(recipe) if recipe else self._json({"error": "not found"}, 404)

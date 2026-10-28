@@ -24,6 +24,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    MenuButtonWebApp,
     Message,
     WebAppInfo,
 )
@@ -68,14 +69,29 @@ def load_env() -> None:
 async def start(msg: Message):
     url = _demo_url()
     kb = InlineKeyboardMarkup(inline_keyboard=[[
-        InlineKeyboardButton(text="🍳 Открыть демо-рецепт", url=url),
+        InlineKeyboardButton(text="📖 Книга рецептов", web_app=WebAppInfo(url=f"{url}/")),
     ]]) if url else None
     await msg.answer(
         "👋 Пришли ссылку на видео с рецептом — из <b>Instagram</b>, "
         "<b>TikTok</b> или <b>YouTube</b>.\n\n"
         "Я расшифрую звук и соберу рецепт: ингредиенты, шаги по порядку "
-        "и переход к нужному моменту видео.",
+        "и переход к нужному моменту видео.\n\n"
+        "Все рецепты копятся в книге — она на кнопке ниже или в меню слева от поля ввода.",
         reply_markup=kb,
+    )
+
+
+@dp.message(Command("recipes"))
+async def recipes_cmd(msg: Message):
+    url = _demo_url()
+    if not url:
+        await msg.answer("Книга рецептов появится, когда настроен публичный адрес мини-аппа.")
+        return
+    await msg.answer(
+        "📖 Твоя книга рецептов:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Открыть", web_app=WebAppInfo(url=f"{url}/")),
+        ]]),
     )
 
 
@@ -169,6 +185,19 @@ async def main():
         raise SystemExit("нет TELEGRAM_BOT_TOKEN — создай бота у @BotFather и положи токен в .env")
     bot = Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await bot.delete_webhook(drop_pending_updates=True)
+
+    # постоянная кнопка «Рецепты» слева от поля ввода — мини-апп в один тап
+    if WEBAPP_URL:
+        try:
+            await bot.set_chat_menu_button(
+                menu_button=MenuButtonWebApp(
+                    text="Рецепты", web_app=WebAppInfo(url=f"{WEBAPP_URL}/"),
+                )
+            )
+            print(f"кнопка меню → {WEBAPP_URL}/", flush=True)
+        except Exception as e:
+            print(f"⚠️  не удалось поставить кнопку меню: {e}", flush=True)
+
     print("бот запущен", flush=True)
     await dp.start_polling(bot)
 

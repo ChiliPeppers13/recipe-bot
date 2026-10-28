@@ -47,6 +47,29 @@ def build() -> int:
     if files:
         shutil.copy2(files[-1], RECIPES / "latest.json")
 
+    # индекс для «книги рецептов»: новые сверху
+    items = []
+    for src in files:
+        try:
+            r = json.loads(src.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        s = r.get("source") or {}
+        items.append({
+            "id": src.stem,
+            "title": r.get("title") or "Без названия",
+            "emoji": r.get("emoji") or "🍽",
+            "time_min": r.get("time_min"),
+            "steps": len(r.get("steps") or []),
+            "platform": s.get("platform") or "",
+            "thumb": s.get("thumbnail") or "",
+            "added": int(src.stat().st_mtime),
+        })
+    items.sort(key=lambda x: x["added"], reverse=True)
+    (RECIPES / "index.json").write_text(
+        json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+
     return len(files)
 
 
