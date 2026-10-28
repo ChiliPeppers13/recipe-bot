@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Рецепт</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --bg:#0f0d0b; --bg2:#17130f; --card:#1e1915; --line:rgba(255,255,255,.08);
+    --text:#f6efe7; --muted:#a2938a; --accent:#ff8a3d; --accent2:#ffb347;
+    --ok:#54c98a; --radius:20px;
+  }
+  @media (prefers-color-scheme: light){
+    :root{ --bg:#fbf7f2; --bg2:#fff; --card:#fff; --line:rgba(0,0,0,.08);
+           --text:#22190f; --muted:#8b7c6f; }
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+  body{padding-bottom:96px}
+
+  /* ── hero ─────────────────────────────────────────── */
+  .hero{position:relative;height:280px;overflow:hidden}
+  .hero img{width:100%;height:100%;object-fit:cover;display:block}
+  .hero::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(180deg,rgba(15,13,11,.25) 0%,rgba(15,13,11,.55) 45%,var(--bg) 100%)}
+  .hero-in{position:absolute;left:18px;right:18px;bottom:14px;z-index:2}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,138,61,.16);
+    color:var(--accent2);border:1px solid rgba(255,138,61,.35);border-radius:100px;
+    padding:5px 11px;font-size:12px;font-weight:600;letter-spacing:.02em;margin-bottom:10px}
+  h1{margin:0;font-size:27px;line-height:1.15;letter-spacing:-.02em;font-weight:750}
+  .sub{margin:6px 0 0;color:var(--muted);font-size:14px}
+
+  /* ── meta chips ───────────────────────────────────── */
+  .meta{display:flex;gap:8px;padding:14px 18px 4px;overflow-x:auto;scrollbar-width:none}
+  .meta::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;padding:9px 13px;font-size:13.5px;font-weight:550}
+  .chip b{font-weight:700}
+  .chip span{color:var(--muted);font-weight:500}
+
+  /* ── sections ─────────────────────────────────────── */
+  section{padding:18px 18px 0}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
+  h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+     color:var(--muted)}
+  .count{font-size:13px;color:var(--accent);font-weight:650}
+
+  /* ── ingredients ──────────────────────────────────── */
+  .ing{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+  .ing-row{display:flex;align-items:center;gap:12px;padding:13px 15px;
+    border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+  .ing-row:last-child{border-bottom:0}
+  .ing-row:active{background:rgba(255,138,61,.07)}
+  .box{width:22px;height:22px;flex:0 0 22px;border-radius:7px;border:1.8px solid rgba(160,140,125,.5);
+    display:grid;place-items:center;transition:.18s}
+  .box svg{width:13px;height:13px;opacity:0;transform:scale(.6);transition:.18s}
+  .ing-row.done .box{background:var(--ok);border-color:var(--ok)}
+  .ing-row.done .box svg{opacity:1;transform:scale(1)}
+  .ing-row.done .name{color:var(--muted);text-decoration:line-through}
+  .name{flex:1;font-size:15.5px}
+  .qty{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .qty.vague{font-style:italic;opacity:.85}
+  .qty-col{text-align:right;flex:0 0 auto;max-width:45%}
+  .est{font-size:11.5px;color:var(--accent2);opacity:.85;margin-top:2px;
+       font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  /* ── steps ────────────────────────────────────────── */
+  .step{display:flex;gap:14px;padding:15px 16px;background:var(--card);
+    border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;
+    cursor:pointer;transition:.15s;position:relative}
+  .step:active{transform:scale(.985)}
+  .step.done{opacity:.45}
+  .num{flex:0 0 30px;height:30px;border-radius:10px;background:rgba(255,138,61,.13);
+    color:var(--accent2);display:grid;place-items:center;font-size:14px;font-weight:700}
+  .step.done .num{background:var(--ok);color:#08150e}
+  .step-body{flex:1;min-width:0}
+  .step-text{font-size:15.5px;line-height:1.42}
+  .step.done .step-text{text-decoration:line-through}
+  .at{display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:4px 9px;
+    background:rgba(255,255,255,.06);border-radius:9px;font-size:12.5px;color:var(--accent2);
+    font-weight:600;font-variant-numeric:tabular-nums}
+  @media (prefers-color-scheme: light){ .at{background:rgba(255,138,61,.12)} }
+
+  /* ── notes ────────────────────────────────────────── */
+  .note{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 16px;font-size:14.5px;line-height:1.5;margin-bottom:10px}
+  .note.tip{border-left:2px solid var(--accent)}
+  .note.warn{border-left:2px solid #d8a33a;color:var(--muted)}
+  .note b{color:var(--text)}
+
+  /* ── footer / bar ─────────────────────────────────── */
+  .src{display:flex;align-items:center;gap:10px;margin:16px 18px 8px;padding:12px 14px;
+    background:var(--card);border:1px solid var(--line);border-radius:16px;font-size:13.5px;
+    color:var(--muted);cursor:pointer}
+  .src .play{width:26px;height:26px;border-radius:8px;background:var(--accent);
+    display:grid;place-items:center;color:#1a0d02;font-size:11px;flex:0 0 26px}
+  .bar{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(12px + env(safe-area-inset-bottom));
+    background:linear-gradient(180deg,transparent,var(--bg) 38%);z-index:9}
+  .bar-in{display:flex;align-items:center;gap:12px;background:var(--card);
+    border:1px solid var(--line);border-radius:16px;padding:11px 14px}
+  .track{flex:1;height:6px;background:rgba(160,140,125,.22);border-radius:99px;overflow:hidden}
+  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));
+    border-radius:99px;transition:width .25s}
+  .bar-txt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+
+  .skel{padding:18px}
+  .sk{height:16px;border-radius:8px;background:var(--card);margin-bottom:10px;
+      animation:pulse 1.3s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.85}}
+
+  /* на большом экране — узкая «телефонная» колонка */
+  @media (min-width: 620px){
+    body{max-width:440px;margin:0 auto;background:var(--bg2);
+         box-shadow:0 0 0 1px var(--line), 0 30px 80px rgba(0,0,0,.35)}
+    html{background:#0a0908}
+    .bar{left:50%;right:auto;transform:translateX(-50%);width:440px}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div class="hero"><div class="skel"><div class="sk" style="width:60%"></div></div></div>
+</div>
+
+<script>
+/* ────────────────────────────────────────────────────────────
+   Мини-апп. Данные берёт из ./recipe.json (его кладёт сервер/бот).
+   В Telegram дополнительно: тема, кнопка «назад», haptic.
+   ──────────────────────────────────────────────────────────── */
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#0f0d0b'); }
+
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const state = { recipe: null, doneIng: new Set(), doneSteps: new Set() };
+
+/* таймкод "1:05" → ссылка на момент в оригинале */
+function jumpUrl(at) {
+  const src = state.recipe?.source; if (!src?.url || !at) return null;
+  const [m, s] = at.split(':').map(Number);
+  const t = (m || 0) * 60 + (s || 0);
+  const u = new URL(src.url);
+  if (src.url.includes('youtu')) { u.searchParams.set('t', t + 's'); return u.toString(); }
+  return src.url;
+}
+function haptic() { tg?.HapticFeedback?.selectionChanged?.(); }
+function openLink(url) { if (!url) return; tg ? tg.openLink(url) : window.open(url, '_blank'); }
+
+function render(r) {
+  state.recipe = r;
+  const vague = q => !q || /по вкусу|щепотк|немного|~|\?/i.test(q);
+  const thumb = r.source?.thumbnail || '';
+  const mins = r.time_min ? `${r.time_min} мин` : '—';
+
+  $('#app').innerHTML = `
+    <div class="hero">
+      ${thumb ? `<img src="${esc(thumb)}" alt="">` : ''}
+      <div class="hero-in">
+        <div class="badge">${esc(r.emoji || '🍳')} из видео</div>
+        <h1>${esc(r.title)}</h1>
+        ${r.subtitle ? `<p class="sub">${esc(r.subtitle)}</p>` : ''}
+      </div>
+    </div>
+
+    <div class="meta">
+      <div class="chip">⏱ <b>${esc(mins)}</b></div>
+      <div class="chip">🍽 <b>${esc(r.servings ?? '—')}</b> <span>порц.</span></div>
+      <div class="chip">📊 <span>сложность</span> <b>${esc(r.difficulty || '—')}</b></div>
+      <div class="chip">🧾 <b>${r.ingredients.length}</b> <span>ингр.</span></div>
+    </div>
+
+    <section>
+      <div class="sec-head"><h2>Ингредиенты</h2><div class="count" id="ingCount"></div></div>
+      <div class="ing" id="ingList">
+        ${r.ingredients.map((x, i) => `
+          <div class="ing-row" data-ing="${i}">
+            <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#08150e" stroke-width="3.4"
+              stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+            <div class="name">${esc(x.name)}</div>
+            <div class="qty-col">
+              <div class="qty ${vague(x.qty) ? 'vague' : ''}">${esc(x.qty || 'по вкусу')}</div>
+              ${(vague(x.qty) && x.est) ? `<div class="est">${esc(x.est)}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>Как готовить</h2><div class="count">${r.steps.length} шагов</div></div>
+      ${r.steps.map((s, i) => `
+        <div class="step" data-step="${i}">
+          <div class="num">${s.n ?? i + 1}</div>
+          <div class="step-body">
+            <div class="step-text">${esc(s.text)}</div>
+            ${s.at ? `<div class="at" data-jump="${esc(s.at)}">▶ ${esc(s.at)} в видео</div>` : ''}
+          </div>
+        </div>`).join('')}
+    </section>
+
+    ${(r.tips?.length) ? `<section>
+      <div class="sec-head"><h2>Советы автора</h2></div>
+      ${r.tips.map(t => `<div class="note tip">${esc(t)}</div>`).join('')}
+    </section>` : ''}
+
+    ${(r.missing?.length) ? `<section>
+      <div class="sec-head"><h2>Чего нет в видео</h2></div>
+      ${r.missing.map(t => `<div class="note warn">${esc(t)}</div>`).join('')}
+    </section>` : ''}
+
+    ${r.source?.url ? `<div class="src" id="srcBtn">
+      <div class="play">▶</div>
+      <div>Оригинал: ${esc(r.source.author || 'видео')}</div>
+    </div>` : ''}
+
+    <div class="bar"><div class="bar-in">
+      <div class="track"><div class="fill" id="fill"></div></div>
+      <div class="bar-txt" id="barTxt">0/${r.ingredients.length}</div>
+    </div></div>`;
+
+  /* ингредиенты: тап — вычеркнуть */
+  $('#ingList').addEventListener('click', e => {
+    const row = e.target.closest('.ing-row'); if (!row) return;
+    const i = +row.dataset.ing;
+    state.doneIng.has(i) ? state.doneIng.delete(i) : state.doneIng.add(i);
+    row.classList.toggle('done'); haptic(); updateBar();
+  });
+
+  /* шаги: тап по таймкоду — открыть видео на моменте, тап по шагу — готово */
+  document.querySelectorAll('.step').forEach(el => {
+    el.addEventListener('click', e => {
+      const at = e.target.closest('[data-jump]');
+      if (at) { openLink(jumpUrl(at.dataset.jump)); return; }
+      const i = +el.dataset.step;
+      state.doneSteps.has(i) ? state.doneSteps.delete(i) : state.doneSteps.add(i);
+      el.classList.toggle('done'); haptic();
+    });
+  });
+
+  $('#srcBtn')?.addEventListener('click', () => openLink(r.source.url));
+  updateBar();
+}
+
+function updateBar() {
+  const total = state.recipe.ingredients.length;
+  const done = state.doneIng.size;
+  $('#fill').style.width = total ? (done / total * 100) + '%' : '0%';
+  $('#barTxt').textContent = `${done}/${total}`;
+  $('#ingCount').textContent = done ? `готово ${done}` : `всего ${total}`;
+}
+
+/* загрузка данных: сначала с сервера, потом из встроенного JSON (демо без сети) */
+(async () => {
+  try {
+    const res = await fetch('./recipe.json', { cache: 'no-store' });
+    if (!res.ok) throw new Error(res.status);
+    render(await res.json());
+  } catch (err) {
+    if (window.__DEMO_RECIPE__) return render(window.__DEMO_RECIPE__);
+    $('#app').innerHTML = `<div class="skel" style="padding-top:60px">
+      <div class="badge">Ошибка</div>
+      <h1 style="margin-top:8px">Не удалось загрузить рецепт</h1>
+      <p class="sub">${esc(err.message)}</p></div>`;
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# секреты и мусор
+.env
+.venv/
+__pycache__/
+*.pyc
+
+# рабочие файлы прогонов
+demo-run/
+bot.log
+server.log
+audio16k.wav
