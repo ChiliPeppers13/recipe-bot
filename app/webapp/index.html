@@ -136,6 +136,11 @@
     display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:100px;
     background:rgba(20,16,13,.55);backdrop-filter:blur(8px);color:#fff;text-decoration:none;
     font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.14)}
+  .actions{display:flex;gap:10px;margin:14px 18px 0}
+  .act{flex:1;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--card);
+    color:var(--text);font:inherit;font-size:14.5px;font-weight:600;cursor:pointer;transition:.15s}
+  .act:active{transform:scale(.98)}
+  .act.danger{color:#ff8b7a;border-color:rgba(255,110,90,.35)}
 
   /* на большом экране — узкая «телефонная» колонка */
   @media (min-width: 620px){
@@ -176,7 +181,15 @@ function jumpUrl(at) {
 function haptic() { tg?.HapticFeedback?.selectionChanged?.(); }
 function openLink(url) { if (!url) return; tg ? tg.openLink(url) : window.open(url, '_blank'); }
 
-function render(r) {
+/* правка и удаление живут в боте: статичный сайт не может писать в репозиторий */
+const BOT_USER = 'gabago0l_bot';
+function botDeepLink(payload) {
+  const url = `https://t.me/${BOT_USER}?start=${payload}`;
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, '_blank');
+}
+
+function render(r, id) {
   state.recipe = r;
   const vague = q => !q || /по вкусу|щепотк|немного|~|\?/i.test(q);
   const thumb = r.source?.thumbnail || '';
@@ -243,6 +256,11 @@ function render(r) {
       <div>Оригинал: ${esc(r.source.author || 'видео')}</div>
     </div>` : ''}
 
+    ${id ? `<div class="actions">
+      <button class="act" id="editBtn">✏️ Изменить</button>
+      <button class="act danger" id="delBtn">🗑 Удалить</button>
+    </div>` : ''}
+
     <div class="bar"><div class="bar-in">
       <div class="track"><div class="fill" id="fill"></div></div>
       <div class="bar-txt" id="barTxt">0/${r.ingredients.length}</div>
@@ -268,6 +286,8 @@ function render(r) {
   });
 
   $('#srcBtn')?.addEventListener('click', () => openLink(r.source.url));
+  $('#editBtn')?.addEventListener('click', () => botDeepLink(`edit_${id}`));
+  $('#delBtn')?.addEventListener('click', () => botDeepLink(`del_${id}`));
   updateBar();
 }
 
@@ -297,7 +317,8 @@ async function fetchJson(url, tries = 8) {
   let lastErr = new Error('HTTP 404');
   for (let i = 0; i < tries; i++) {
     try {
-      const res = await fetch(url, { cache: 'no-store' });
+      // ?v= обходит кэш CDN: после правок и удалений файл может отдаваться старым
+      const res = await fetch(`${url}?v=${Date.now()}`, { cache: 'no-store' });
       if (res.ok) return await res.json();
       lastErr = new Error('HTTP ' + res.status);
       if (res.status !== 404) throw lastErr;
@@ -314,7 +335,7 @@ function route() {
   const id = recipeId();
   if (id) {
     renderPending(0);
-    fetchJson(`${BASE}/recipes/${id}.json`).then(render).catch(renderError);
+    fetchJson(`${BASE}/recipes/${id}.json`).then(x => render(x, id)).catch(renderError);
   } else {
     renderLoading();
     fetchJson(`${BASE}/recipes/index.json`).then(renderLibrary).catch(renderLibraryError);

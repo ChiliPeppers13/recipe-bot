@@ -35,7 +35,7 @@ STORE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "store"
 WEBAPP_BASE = os.getenv("WEBAPP_URL", "https://chilipeppers13.github.io/recipe-bot").rstrip("/")
 
 sys.path.insert(0, str(ROOT))
-from pipeline import build  # noqa: E402
+from pipeline import build, edit_recipe, from_page, from_source_text  # noqa: E402
 
 STORE.mkdir(parents=True, exist_ok=True)
 _lock = threading.Lock()
@@ -145,37 +145,87 @@ class Handler(BaseHTTPRequestHandler):
 
         self._json({"error": "not found"}, 404)
 
+    # --- общее: сохранить рецепт и выложить на GitHub Pages ---
+    def _save(self, recipe: dict, rid: str | None = None, wait: bool = True) -> dict:
+        rid = rid or uuid.uuid4().hex[:10]
+        (STORE / f"{rid}.json").write_text(json.dumps(recipe, ensure_ascii=False), encoding="utf-8")
+        live = False
+        try:
+            self._publish_docs(f"recipe: {recipe.get('title', rid)}")
+            if wait:
+                live = wait_until_live(rid)      # без этого кнопка в боте ведёт на 404
+        except Exception as e:
+            print(f"  ⚠️  публикация не удалась: {e}", flush=True)
+        return {"id": rid, "title": recipe.get("title"), "live": live}
+
+    def _publish_docs(self, message: str) -> None:
+        sys.path.insert(0, str(ROOT.parent / "scripts"))
+        import publish  # noqa: PLC0415
+        publish.build()
+        publish.publish(message)
+
+    def _recipe_by_id(self, rid: str) -> dict | None:
+        return find_recipe(rid)
+
     def do_POST(self):
-        if self.path.split("?")[0] != "/api/recipe":
+        route = self.path.split("?")[0]
+        allowed = ("/api/recipe", "/api/text", "/api/page", "/api/edit", "/api/delete")
+        if route not in allowed:
             return self._json({"error": "not found"}, 404)
 
         try:
             length = int(self.headers.get("Content-Length") or 0)
             payload = json.loads(self.rfile.read(length) or b"{}")
-            url = (payload.get("url") or "").strip()
-            if not url.startswith("http"):
-                return self._json({"error": "нужна ссылка http(s)"}, 400)
+        except Exception:
+            return self._json({"error": "плохой JSON"}, 400)
 
-            with _lock:                     # whisper не любит параллельных прогонов
-                recipe = build(url)
+        try:
+            if route == "/api/recipe":
+                url = (payload.get("url") or "").strip()
+                if not url.startswith("http"):
+                    return self._json({"error": "нужна ссылка http(s)"}, 400)
+                with _lock:                     # whisper не любит параллельных прогонов
+                    recipe = build(url)
+                return self._json(self._save(recipe))
 
-            rid = uuid.uuid4().hex[:10]
-            (STORE / f"{rid}.json").write_text(
-                json.dumps(recipe, ensure_ascii=False), encoding="utf-8"
-            )
+            if route == "/api/page":                 # обычный сайт с рецептом
+                url = (payload.get("url") or "").strip()
+                if not url.startswith("http"):
+                    return self._json({"error": "нужна ссылка http(s)"}, 400)
+                with _lock:
+                    recipe = from_page(url)
+                return self._json(self._save(recipe))
 
-            # выкладываем рецепт на GitHub Pages (сайт статический)
-            live = False
-            try:
-                sys.path.insert(0, str(ROOT.parent / "scripts"))
-                import publish  # noqa: PLC0415
-                publish.build()
-                if publish.publish(f"recipe: {recipe.get('title', rid)}"):
-                    live = wait_until_live(rid)      # без этого кнопка в боте ведёт на 404
-            except Exception as e:
-                print(f"  ⚠️  публикация не удалась: {e}", flush=True)
+            if route == "/api/text":                 # текст рецепта сообщением
+                text = (payload.get("text") or "").strip()
+                with _lock:
+                    recipe = from_source_text(
+                        text, title=(payload.get("title") or "").strip(),
+                        origin="текст от пользователя",
+                    )
+                return self._json(self._save(recipe))
 
-            return self._json({"id": rid, "title": recipe.get("title"), "live": live})
+            if route == "/api/edit":                 # правка готового рецепта
+                rid = (payload.get("id") or "").strip()
+                instruction = (payload.get("instruction") or "").strip()
+                if not rid or len(instruction) < 3:
+                    return self._json({"error": "нужен id и текст правки"}, 400)
+                recipe = self._recipe_by_id(rid)
+                if not recipe:
+                    return self._json({"error": "рецепт не найден"}, 404)
+                with _lock:
+                    updated = edit_recipe(recipe, instruction)
+                return self._json(self._save(updated, rid=rid, wait=False))
+
+            if route == "/api/delete":
+                rid = (payload.get("id") or "").strip()
+                path_file = STORE / f"{rid}.json"
+                if not rid or not path_file.exists():
+                    return self._json({"error": "рецепт не найден"}, 404)
+                title = json.loads(path_file.read_text(encoding="utf-8")).get("title", rid)
+                path_file.unlink()
+                self._publish_docs(f"delete: {title}")
+                return self._json({"deleted": rid, "title": title})
 
         except Exception as e:                      # показываем причину, а не 500 без текста
             traceback.print_exc()

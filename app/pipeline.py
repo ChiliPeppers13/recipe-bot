@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import hashlib
+import html as html_mod
 import json
 import os
 import re
@@ -324,6 +325,132 @@ def build(url: str, keep_audio: bool = False) -> dict:
     if not recipe.get("ingredients") or not recipe.get("steps"):
         raise ValueError("в этом видео не нашлось рецепта — модель не увидела ни ингредиентов, ни шагов.")
     return recipe
+
+
+# --- 4. рецепт из текста или обычного сайта ---------------------------------
+
+def fetch_page_text(url: str, limit: int = 14000) -> tuple[str, str]:
+    """Вытаскиваем текст со страницы рецепта: без тегов, скриптов и разметки."""
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 "
+                      "(KHTML, like Gecko) Version/17.0 Safari/605.1.15",
+        "Accept-Language": "ru,en;q=0.8",
+    })
+    with urllib.request.urlopen(req, timeout=30) as r:
+        charset = r.headers.get_content_charset() or "utf-8"
+        raw = r.read()
+
+    page = raw.decode(charset, errors="ignore")
+    title_m = re.search(r"<title[^>]*>(.*?)</title>", page, re.S | re.I)
+    title = html_mod.unescape(title_m.group(1)).strip() if title_m else ""
+
+    body = re.sub(r"<(script|style|noscript|svg|head)[^>]*>.*?</\1>", " ", page, flags=re.S | re.I)
+    body = re.sub(r"<(br|/p|/div|/li|/h[1-6])[^>]*>", "\n", body, flags=re.I)
+    body = re.sub(r"<[^>]+>", " ", body)
+    body = html_mod.unescape(body)
+    body = re.sub(r"[ \t]+", " ", body)
+    body = re.sub(r"\n\s*\n+", "\n", body).strip()
+    return title, body[:limit]
+
+
+def from_source_text(text: str, title: str = "", url: str = "", origin: str = "текст") -> dict:
+    """Рецепт из готового текста (прислали сообщением или со страницы)."""
+    load_env()
+    text = (text or "").strip()
+    if len(text) < 60:
+        raise ValueError("текста слишком мало — пришли рецепт целиком или ссылку на страницу")
+
+    info = {
+        "url": url,
+        "title": title or (text.split("\n")[0][:70]),
+        "author": "",
+        "duration": 0,
+        "thumbnail": "",
+        "platform": "web" if url else "text",
+        "description": "",
+    }
+    transcript = {"language": "ru", "text": text, "chunks": []}
+
+    recipe = make_recipe(transcript, info, text, origin)
+    if not recipe.get("ingredients") or not recipe.get("steps"):
+        raise ValueError("в этом тексте не нашлось рецепта — нужны ингредиенты и шаги")
+    return recipe
+
+
+def from_page(url: str) -> dict:
+    title, text = fetch_page_text(url)
+    if len(text) < 100:
+        raise ValueError("на странице не нашлось текста (возможно, рецепт за скриптами)")
+    return from_source_text(text, title=title, url=url, origin="текст со страницы")
+
+
+# --- 5. правка готового рецепта ---------------------------------------------
+
+EDIT_PROMPT = """Ты правишь готовый рецепт по просьбе пользователя.
+
+Тебе дают JSON рецепта и просьбу. Верни ИЗМЕНЁННЫЙ JSON целиком, в той же структуре:
+title, subtitle, emoji, time_min, servings, difficulty, ingredients[], steps[], tips[], missing[].
+
+Правила:
+- Меняй только то, о чём просят. Остальное оставь как было, включая порядок.
+- Если просят добавить ингредиент — добавь в конец списка и, если нужно, поправь шаги.
+- Если просят убрать — убери и из ингредиентов, и из шагов.
+- У шагов пересчитай поле "n" по порядку; поле "at" оставь как было (или пустое).
+- Никакого текста вокруг JSON."""
+
+
+def edit_recipe(recipe: dict, instruction: str) -> dict:
+    """Применяем правку к рецепту через LLM. Возвращает новый рецепт."""
+    load_env()
+    key = os.getenv("OPENCODE_GO_API_KEY")
+    if not key:
+        raise RuntimeError("нет OPENCODE_GO_API_KEY (положи в .env)")
+
+    clean = {k: recipe.get(k) for k in (
+        "title", "subtitle", "emoji", "time_min", "servings", "difficulty",
+        "ingredients", "steps", "tips", "missing",
+    )}
+    body = {
+        "model": LLM_MODEL,
+        "messages": [
+            {"role": "system", "content": EDIT_PROMPT},
+            {"role": "user", "content": (
+                f"Просьба: {instruction}\n\n"
+                f"Текущий рецепт:\n{json.dumps(clean, ensure_ascii=False)}"
+            )},
+        ],
+        "temperature": 0.1,
+        "response_format": {"type": "json_object"},
+    }
+
+    req = urllib.request.Request(
+        f"{LLM_BASE}/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "x-opencode-session": f"recipe-edit-{uuid.uuid4().hex}",
+            "HTTP-Referer": "https://hermes-agent.nousresearch.com",
+            "X-Title": "Recipe Bot",
+            "User-Agent": "RecipeBot/0.1",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            data = json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        raise RuntimeError(f"LLM {e.code}: {e.read().decode(errors='replace')[:300]}") from e
+
+    text = (data["choices"][0]["message"].get("content") or "").strip()
+    text = re.sub(r"^```(?:json)?|```$", "", text, flags=re.MULTILINE).strip()
+    edited = json.loads(text)
+
+    # служебные поля не должны потеряться
+    for k in ("source", "raw_transcript", "language", "source_from"):
+        if k in recipe:
+            edited[k] = recipe[k]
+    edited["edited"] = True
+    return edited
 
 
 if __name__ == "__main__":

@@ -20,8 +20,9 @@ import aiohttp
 from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.types import (
+    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     MenuButtonWebApp,
@@ -42,6 +43,10 @@ LINK_RE = re.compile(
 )
 
 dp = Dispatcher()
+
+# чего ждём от пользователя: {chat_id: {"action": "edit", "rid": "…"}}
+PENDING: dict[int, dict] = {}
+BOT_USERNAME = os.getenv("BOT_USERNAME", "gabago0l_bot")
 
 
 def load_env() -> None:
@@ -106,14 +111,50 @@ async def help_cmd(msg: Message):
     )
 
 
-@dp.message(F.text.regexp(LINK_RE))
-async def on_link(msg: Message):
-    url = LINK_RE.search(msg.text).group(0)
-    status = await msg.answer("⏳ Слушаю видео и разбираю рецепт…")
+@dp.message(F.text, ~F.text.startswith("/"))
+async def on_text(msg: Message):
+    text = (msg.text or "").strip()
+
+    pending = PENDING.pop(msg.chat.id, None)
+    if pending and pending.get("action") == "edit":
+        await _apply_edit(msg, pending["rid"], text)
+        return
+
+    link = LINK_RE.search(text)
+    bare = re.search(r"https?://\S+", text)
+
+    if link:
+        await _process(msg, "/api/recipe", {"url": link.group(0)},
+                       "⏳ Слушаю видео и разбираю рецепт…")
+    elif bare:
+        await _process(msg, "/api/page", {"url": bare.group(0)},
+                       "⏳ Читаю страницу и собираю рецепт…")
+    elif len(text) >= 80:
+        await _process(msg, "/api/text", {"text": text}, "⏳ Разбираю текст в рецепт…")
+    else:
+        await msg.answer(
+            "Пришли одно из трёх:\n"
+            "• ссылку на видео (Instagram, TikTok, YouTube)\n"
+            "• ссылку на страницу с рецептом\n"
+            "• сам текст рецепта — прямо сообщением"
+        )
+
+
+def _kb_recipe(rid: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📖 Открыть рецепт",
+                              web_app=WebAppInfo(url=f"{WEBAPP_URL}/#r/{rid}"))],
+        [InlineKeyboardButton(text="✏️ Изменить", callback_data=f"edit:{rid}"),
+         InlineKeyboardButton(text="🗑 Удалить", callback_data=f"del:{rid}")],
+    ])
+
+
+async def _process(msg: Message, endpoint: str, payload: dict, status_text: str):
+    status = await msg.answer(status_text)
 
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.post(f"{API}/api/recipe", json={"url": url},
+            async with s.post(f"{API}{endpoint}", json=payload,
                               timeout=aiohttp.ClientTimeout(total=900)) as r:
                 data = await r.json()
     except Exception as e:
@@ -121,34 +162,111 @@ async def on_link(msg: Message):
         return
 
     if "error" in data:
-        await status.edit_text(
-            "😔 Не смог разобрать это видео.\n\n"
-            f"<code>{data['error'][:300]}</code>\n\n"
-            "Частые причины: закрытый аккаунт, нет звука или видео удалено."
-        )
+        await status.edit_text(f"😔 {data['error'][:400]}")
         return
 
     rid = data["id"]
-    live = data.get("live", True)
     head = f"<b>{data.get('title') or 'Рецепт'} — готово!</b>"
-    if not live:
+    if not data.get("live", True):
         head += "\n<i>GitHub Pages ещё собирает страницу — открой через полминуты.</i>"
 
     if WEBAPP_URL:
-        await status.edit_text(
-            head,
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
-                InlineKeyboardButton(text="📖 Открыть рецепт",
-                                     web_app=WebAppInfo(url=f"{WEBAPP_URL}/#r/{rid}")),
-            ]]),
-        )
+        await status.edit_text(head, reply_markup=_kb_recipe(rid))
     else:
         await status.edit_text(await _text_recipe(rid))
 
 
+async def _apply_edit(msg: Message, rid: str, instruction: str):
+    status = await msg.answer("✏️ Правлю рецепт…")
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(f"{API}/api/edit", json={"id": rid, "instruction": instruction},
+                              timeout=aiohttp.ClientTimeout(total=400)) as r:
+                data = await r.json()
+    except Exception as e:
+        await status.edit_text(f"😔 Не получилось: <code>{str(e)[:200]}</code>")
+        return
+
+    if "error" in data:
+        await status.edit_text(f"😔 {data['error'][:300]}")
+        return
+
+    await status.edit_text(
+        f"<b>{data.get('title')} — обновлено</b>\n<i>Открой рецепт, чтобы увидеть правки.</i>",
+        reply_markup=_kb_recipe(rid) if WEBAPP_URL else None,
+    )
+
+
+@dp.callback_query(F.data.startswith("edit:"))
+async def cb_edit(cq: CallbackQuery):
+    rid = cq.data.split(":", 1)[1]
+    PENDING[cq.message.chat.id] = {"action": "edit", "rid": rid}
+    await cq.message.answer(
+        "✏️ Что изменить? Напиши одним сообщением, например:\n"
+        "«убери сливки, добавь чеснок» или «переименуй в „Паста с беконом“»"
+    )
+    await cq.answer()
+
+
+@dp.callback_query(F.data.startswith("del:"))
+async def cb_del(cq: CallbackQuery):
+    rid = cq.data.split(":", 1)[1]
+    await cq.message.answer(
+        "🗑 Удалить рецепт? Он исчезнет из книги, файл уйдёт из репозитория.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="Да, удалить", callback_data=f"delok:{rid}"),
+            InlineKeyboardButton(text="Отмена", callback_data="cancel"),
+        ]]),
+    )
+    await cq.answer()
+
+
+@dp.callback_query(F.data.startswith("delok:"))
+async def cb_delok(cq: CallbackQuery):
+    rid = cq.data.split(":", 1)[1]
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.post(f"{API}/api/delete", json={"id": rid}, timeout=aiohttp.ClientTimeout(total=120)) as r:
+                data = await r.json()
+    except Exception as e:
+        await cq.message.edit_text(f"😔 Не получилось: <code>{str(e)[:200]}</code>")
+        await cq.answer()
+        return
+
+    if "error" in data:
+        await cq.message.edit_text(f"😔 {data['error'][:300]}")
+    else:
+        await cq.message.edit_text(f"🗑 Удалено: «{data.get('title')}»")
+    await cq.answer()
+
+
+@dp.callback_query(F.data == "cancel")
+async def cb_cancel(cq: CallbackQuery):
+    await cq.message.edit_text("Отменено.")
+    await cq.answer()
+
+
+@dp.message(CommandStart(deep_link=True))
+async def start_payload(msg: Message, command: CommandObject):
+    payload = command.args or ""
+    if payload.startswith("edit_"):
+        PENDING[msg.chat.id] = {"action": "edit", "rid": payload[5:]}
+        await msg.answer("✏️ Что изменить в этом рецепте? Напиши одним сообщением.")
+    elif payload.startswith("del_"):
+        await msg.answer(
+            "🗑 Удалить этот рецепт?",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Да, удалить", callback_data=f"delok:{payload[4:]}"),
+                InlineKeyboardButton(text="Отмена", callback_data="cancel"),
+            ]]),
+        )
+    else:
+        await start(msg)
+
+
 @dp.message()
 async def fallback(msg: Message):
-    await msg.answer("Пришли ссылку на видео с рецептом (Instagram, TikTok или YouTube).")
+    await msg.answer("Пришли ссылку на видео, ссылку на страницу с рецептом или текст рецепта.")
 
 
 async def _text_recipe(rid: str) -> str:
