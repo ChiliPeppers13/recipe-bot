@@ -32,6 +32,14 @@ LLM_BASE = os.getenv("LLM_BASE", "https://opencode.ai/zen/go/v1")
 
 MAX_AUDIO_SECONDS = 20 * 60   # защита: не транскрибируем двухчасовые стримы
 
+# yt-dlp из окружения проекта важнее системного: у homebrew-сборки нет expat,
+# из-за чего Instagram падает с "No module named expat"
+_PROJECT_YTDLP = Path(__file__).parent.parent / ".venv" / "bin" / "yt-dlp"
+YTDLP = os.getenv("YTDLP") or (str(_PROJECT_YTDLP) if _PROJECT_YTDLP.exists() else "yt-dlp")
+
+# cookies нужны для Instagram (и иногда для возрастных видео YouTube)
+COOKIES = Path.home() / ".hermes" / "cache" / "recipe-bot" / "cookies.txt"
+
 
 # --- утилиты ---------------------------------------------------------------
 
@@ -57,29 +65,66 @@ def run(cmd: list[str]) -> str:
 
 # --- 1. скачивание ---------------------------------------------------------
 
+def _ytdlp_args(browser_cookies: str | None = None) -> list[str]:
+    """Общие флаги. browser_cookies — откуда взять cookies ('chrome', 'safari'...)."""
+    args = [YTDLP, "--no-warnings", "--no-playlist"]
+    if COOKIES.exists():
+        args += ["--cookies", str(COOKIES)]
+    elif browser_cookies:
+        args += ["--cookies-from-browser", browser_cookies]
+    return args
+
+
 def download_audio(url: str, workdir: Path) -> tuple[Path, dict]:
     """Тянем только звук (без видео — быстрее и легче) и приводим к 16 кГц моно.
 
     Важно: явный -f bestaudio. Без него yt-dlp берёт «лучшее» видео,
     а 1080p-форматы YouTube отдаёт только залогиненным → 'Authentication required'.
     """
-    probe = run([
-        "yt-dlp", "--no-warnings", "--no-playlist", "--skip-download",
-        "--print", "%(title)s\t%(uploader,channel)s\t%(duration)s\t%(thumbnail)s\t%(extractor_key)s",
+    fields = [
+        "--skip-download",
+        "--print", "%(title)s", "--print", "%(uploader,channel)s",
+        "--print", "%(duration)s", "--print", "%(thumbnail)s",
+        "--print", "%(extractor_key)s", "--print", "%(description)s",
         url,
-    ]).strip().split("\t")
-    title, author = probe[0], probe[1]
-    duration = int(float(probe[2] or 0)) if probe[2] not in ("NA", "") else 0
-    thumbnail = None if probe[3] in ("NA", "") else probe[3]
-    extractor = probe[4].lower()
+    ]
+    browser = None
+    try:
+        probe_out = run(_ytdlp_args() + fields)
+    except RuntimeError as first:
+        low = str(first).lower()
+        needs_auth = any(k in low for k in (
+            "login", "authentication", "cookies", "rate-limit",
+            "empty media", "not granting", "sign in",
+        ))
+        if not needs_auth:
+            raise
+        # повтор с cookies из Chrome — там пользователь обычно залогинен
+        try:
+            probe_out = run(_ytdlp_args("chrome") + fields)
+            browser = "chrome"
+        except RuntimeError as second:
+            raise ValueError(
+                "Instagram не отдаёт это видео гостям, а в Chrome ты не залогинен. "
+                "Зайди в Instagram в Chrome (и не выходи) — тогда бот прочитает такие ссылки. "
+                "Альтернатива: экспортировать cookies.txt в ~/.hermes/cache/recipe-bot/cookies.txt."
+            ) from second
+
+    lines = probe_out.split("\n")
+    title, author, dur, thumb, extractor = (lines + [""] * 6)[:5]
+    description = "\n".join(lines[5:]).strip()
+    title, author = title.strip(), author.strip()
+
+    duration = int(float(dur)) if dur.strip() not in ("NA", "") else 0
+    thumbnail = None if thumb.strip() in ("NA", "") else thumb.strip()
+    extractor = extractor.strip().lower()
 
     if duration > MAX_AUDIO_SECONDS:
         raise ValueError(f"видео слишком длинное: {duration // 60} мин")
 
     src = workdir / "source.%(ext)s"
-    run([
-        "yt-dlp", "-x", "--audio-format", "wav", "-f", "bestaudio/best",
-        "--no-playlist", "--no-warnings", "--no-progress",
+    run(_ytdlp_args(browser) + [
+        "-x", "--audio-format", "wav", "-f", "bestaudio/best", "--no-progress",
         "-o", str(src), url,
     ])
     raw = next(workdir.glob("source.wav"))
@@ -98,6 +143,7 @@ def download_audio(url: str, workdir: Path) -> tuple[Path, dict]:
         "duration": duration,
         "thumbnail": thumbnail,
         "platform": extractor,
+        "description": description,
     }
     return wav, info
 
@@ -164,7 +210,7 @@ def _timeline(transcript: dict) -> str:
     return "\n".join(lines)
 
 
-def make_recipe(transcript: dict, info: dict) -> dict:
+def make_recipe(transcript: dict, info: dict, source_text: str, origin: str) -> dict:
     key = os.getenv("OPENCODE_GO_API_KEY")
     if not key:
         raise RuntimeError("нет OPENCODE_GO_API_KEY (положи в .env)")
@@ -176,7 +222,7 @@ def make_recipe(transcript: dict, info: dict) -> dict:
             {"role": "user", "content": (
                 f"Видео: {info.get('title')}\n"
                 f"Автор: {info.get('author')}\n\n"
-                f"Расшифровка (с таймкодами):\n{_timeline(transcript)[:24000]}"
+                f"Источник текста: {origin}\n\n{source_text[:24000]}"
             )},
         ],
         "temperature": 0.2,
@@ -251,13 +297,21 @@ def build(url: str, keep_audio: bool = False) -> dict:
 
     print("3/3 собираю рецепт…", flush=True)
     text_len = len(transcript["text"].strip())
-    if text_len < 150:
+    desc = (info.get("description") or "").strip()
+
+    if text_len >= 150:
+        source_text, origin = _timeline(transcript), "речь в видео"
+    elif len(desc) >= 80:
+        # в Reels часто говорят только музыкой, а рецепт пишут в подписи
+        source_text, origin = f"Описание автора под видео:\n{desc}", "описание под видео"
+    else:
         raise ValueError(
-            f"в видео почти нет речи (расшифровка {text_len} симв.) — только музыка или тишина. "
-            "Пришли видео, где рецепт проговаривают голосом."
+            f"в видео почти нет речи ({text_len} симв.) и нет описания с рецептом. "
+            "Похоже, рецепт только текстом на экране — такое я прочитать не могу. "
+            "Пришли видео, где рецепт проговаривают или пишут в подписи."
         )
 
-    recipe = make_recipe(transcript, info)
+    recipe = make_recipe(transcript, info, source_text, origin)
 
     # страховка от пустышки: без ингредиентов и шагов рецепта нет
     if not recipe.get("ingredients") or not recipe.get("steps"):
