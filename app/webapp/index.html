@@ -251,12 +251,15 @@ function updateBar() {
   $('#ingCount').textContent = done ? `готово ${done}` : `всего ${total}`;
 }
 
-/* загрузка данных: id берём из адреса /r/<id>, иначе — последний рецепт */
+/* данные: и локальный сервер, и статичный хостинг (GitHub Pages) отдают /recipes/<id>.json */
 (async () => {
-  const m = location.pathname.match(/^\/r\/([\w-]+)/);
-  const src = m ? `/r/${m[1]}/recipe.json` : '/recipe.json';
+  const parts = location.pathname.split('/').filter(Boolean);
+  const onPages = location.hostname.endsWith('github.io');
+  const sub = (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
+  const m = location.pathname.match(/\/r\/([\w-]+)/);
+  const id = m ? m[1] : 'latest';
   try {
-    const res = await fetch(src, { cache: 'no-store' });
+    const res = await fetch(`${sub}/recipes/${id}.json`, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
     render(await res.json());
   } catch (err) {

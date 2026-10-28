@@ -79,6 +79,13 @@ class Handler(BaseHTTPRequestHandler):
             rid = latest_id()
             return self._json({"id": rid} if rid else {"id": None}, 200 if rid else 404)
 
+        # единый путь данных для аппа: /recipes/<id>.json (тот же, что на GitHub Pages)
+        if path.startswith("/recipes/"):
+            name = path[len("/recipes/"):]
+            rid = latest_id() if name == "latest.json" else name.rsplit(".json", 1)[0]
+            recipe = find_recipe(rid) if rid else None
+            return self._json(recipe) if recipe else self._json({"error": "not found"}, 404)
+
         if path.startswith("/r/"):
             rest = path[3:].strip("/")
             if rest.endswith("recipe.json"):

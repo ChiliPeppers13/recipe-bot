@@ -41,3 +41,36 @@
 2026-10-28T14:34:16Z INF precheck component="TCP Connectivity" details="HTTP/2 connection successful" run_id=0753b470-c4e8-4dae-93e5-54eaed7e4639 status=pass target=region2.v2.argotunnel.com
 2026-10-28T14:34:16Z INF precheck component="Cloudflare API" details="API is reachable" run_id=0753b470-c4e8-4dae-93e5-54eaed7e4639 status=pass target=api.cloudflare.com:443
 2026-10-28T14:34:16Z INF precheck complete hard_fail=false run_id=0753b470-c4e8-4dae-93e5-54eaed7e4639 suggested_protocol=quic
+2026-10-28T14:47:12Z ERR Serve tunnel error error="datagram manager error: write udp4 0.0.0.0:58199->198.41.192.77:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.192.77
+2026-10-28T14:47:12Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.192.77
+2026-10-28T14:47:13Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.192.77
+2026-10-28T14:47:14Z INF Registered tunnel connection connIndex=0 connection=aca5efb9-8a52-4e38-85a4-91c86ac7977e event=0 ip=198.41.192.77 location=tbs02 protocol=quic
+2026-10-28T14:47:28Z ERR Serve tunnel error error="datagram manager error: timeout: no recent network activity" connIndex=0 event=0 ip=198.41.192.77
+2026-10-28T14:47:28Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.192.77
+2026-10-28T14:47:30Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T14:47:32Z INF Registered tunnel connection connIndex=0 connection=dad6e545-9f67-4832-bdfd-965fbf60a6fa event=0 ip=198.41.200.113 location=sof01 protocol=quic
+2026-10-28T15:02:04Z ERR Serve tunnel error error="datagram manager error: write udp4 0.0.0.0:58199->198.41.200.113:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T15:02:04Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T15:02:06Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T15:02:06Z ERR Failed to dial a quic connection error="failed to dial to edge with quic: write udp4 0.0.0.0:58199->198.41.200.113:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T15:02:06Z INF Retrying connection in up to 4s connIndex=0 event=0 ip=198.41.200.113
+2026-10-28T15:02:07Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.53
+2026-10-28T15:02:07Z ERR Failed to dial a quic connection error="failed to dial to edge with quic: write udp4 0.0.0.0:58199->198.41.200.53:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.200.53
+2026-10-28T15:02:07Z INF Retrying connection in up to 8s connIndex=0 event=0 ip=198.41.200.53
+2026-10-28T15:02:10Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T15:02:12Z INF Registered tunnel connection connIndex=0 connection=9e12595d-71a7-4fed-ad76-9c35f23165d3 event=0 ip=198.41.192.67 location=tbs02 protocol=quic
+2026-10-28T17:03:24Z ERR Serve tunnel error error="datagram manager error: write udp4 0.0.0.0:58199->198.41.192.67:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:31Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:35Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:37Z INF Registered tunnel connection connIndex=0 connection=276a0ae5-206f-452a-b4ce-ca28a6271fbf event=0 ip=198.41.192.67 location=tbs02 protocol=quic
+2026-10-28T17:03:39Z ERR Serve tunnel error error="datagram manager error: write udp4 0.0.0.0:58199->198.41.192.67:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:39Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:42Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:43Z ERR Failed to dial a quic connection error="failed to dial to edge with quic: write udp4 0.0.0.0:58199->198.41.192.67:7844: sendmsg: broken pipe" connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:43Z INF Retrying connection in up to 4s connIndex=0 event=0 ip=198.41.192.67
+2026-10-28T17:03:46Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.13
+2026-10-28T17:03:47Z INF Registered tunnel connection connIndex=0 connection=13938341-397d-40cf-9905-b2e223413b94 event=0 ip=198.41.200.13 location=sof01 protocol=quic
+2026-10-28T18:19:34Z ERR Serve tunnel error error="datagram manager error: write udp4 0.0.0.0:58199->198.41.200.13:7844: sendmsg: no route to host" connIndex=0 event=0 ip=198.41.200.13
+2026-10-28T18:19:34Z INF Retrying connection in up to 2s connIndex=0 event=0 ip=198.41.200.13
+2026-10-28T18:19:36Z INF Tunnel connection curve preferences: [X25519MLKEM768 CurveID(65074) CurveP256] connIndex=0 event=0 ip=198.41.200.13
+2026-10-28T18:19:42Z INF Registered tunnel connection connIndex=0 connection=b8670860-f40e-4227-b0e7-a57e3ef66b31 event=0 ip=198.41.200.13 location=sof01 protocol=quic
