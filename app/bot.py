@@ -75,6 +75,17 @@ def save_access(ids: set[int], private: bool) -> None:
     )
 
 
+class IdLogger(BaseMiddleware):
+    """Пишет в лог, кто и что прислал — чтобы ловить id и разбирать жалобы."""
+
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        user = data.get("event_from_user")
+        if user:
+            what = getattr(event, "text", None) or getattr(event, "data", "") or type(event).__name__
+            print(f"[{user.id}] {str(what)[:40]}", flush=True)
+        return await handler(event, data)
+
+
 class AccessGate(BaseMiddleware):
     """Не пускает посторонних, если включён приватный режим."""
 
@@ -118,7 +129,7 @@ def load_env() -> None:
                 os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-@dp.message(CommandStart())
+@dp.message(CommandStart(deep_link=False))
 async def start(msg: Message):
     url = _demo_url()
     kb = InlineKeyboardMarkup(inline_keyboard=[[
@@ -161,6 +172,34 @@ async def help_cmd(msg: Message):
 
 def _is_admin(msg: Message) -> bool:
     return bool(msg.from_user) and msg.from_user.id == ADMIN_ID
+
+
+@dp.message(Command("manage"))
+async def manage_cmd(msg: Message):
+    """Список рецептов с кнопками правки/удаления — не надо искать старое сообщение."""
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(f"{API}/recipes/index.json", timeout=aiohttp.ClientTimeout(total=20)) as r:
+                items = await r.json()
+    except Exception as e:
+        await msg.answer(f"😔 Не получил список: <code>{str(e)[:200]}</code>")
+        return
+
+    if not items:
+        await msg.answer("Книга пока пустая — пришли ссылку или текст рецепта.")
+        return
+
+    rows = []
+    for it in items[:12]:
+        title = (it.get("title") or "Без названия")[:30]
+        rows.append([
+            InlineKeyboardButton(text=f"✏️ {title}", callback_data=f"edit:{it['id']}"),
+            InlineKeyboardButton(text="🗑", callback_data=f"del:{it['id']}"),
+        ])
+    await msg.answer(
+        "Управление рецептами: ✏️ — изменить, 🗑 — удалить.",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=rows),
+    )
 
 
 @dp.message(Command("id"))
@@ -425,7 +464,9 @@ async def main():
     ids, private = load_access()
     print(f"доступ: {'приватный' if private else 'открытый'} · {sorted(ids)}", flush=True)
 
+    dp.message.middleware(IdLogger())
     dp.message.middleware(AccessGate())
+    dp.callback_query.middleware(IdLogger())
     dp.callback_query.middleware(AccessGate())
 
     # постоянная кнопка «Рецепты» слева от поля ввода — мини-апп в один тап
