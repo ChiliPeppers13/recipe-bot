@@ -12,12 +12,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import re
 from pathlib import Path
 
 import aiohttp
-from aiogram import Bot, Dispatcher, F
+from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command, CommandObject, CommandStart
@@ -27,6 +28,7 @@ from aiogram.types import (
     InlineKeyboardMarkup,
     MenuButtonWebApp,
     Message,
+    TelegramObject,
     WebAppInfo,
 )
 
@@ -47,6 +49,52 @@ dp = Dispatcher()
 # чего ждём от пользователя: {chat_id: {"action": "edit", "rid": "…"}}
 PENDING: dict[int, dict] = {}
 BOT_USERNAME = os.getenv("BOT_USERNAME", "gabago0l_bot")
+
+# --- доступ: по умолчанию бот открыт; после /private — только белый список ---
+ACCESS_FILE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "allowed.json"
+ADMIN_ID = int(os.getenv("ADMIN_ID", "8919148247"))
+
+
+def load_access() -> tuple[set[int], bool]:
+    """(список допущенных, включён ли приватный режим)."""
+    if ACCESS_FILE.exists():
+        try:
+            d = json.loads(ACCESS_FILE.read_text(encoding="utf-8"))
+            return set(int(x) for x in d.get("allowed", [])), bool(d.get("private", True))
+        except Exception as e:                      # битый файл не должен молча открывать бота
+            print(f"⚠️  не прочитал {ACCESS_FILE}: {e}", flush=True)
+            return {ADMIN_ID}, True
+    return {ADMIN_ID}, False
+
+
+def save_access(ids: set[int], private: bool) -> None:
+    ACCESS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ACCESS_FILE.write_text(
+        json.dumps({"allowed": sorted(ids), "private": private}, ensure_ascii=False, indent=1),
+        encoding="utf-8",
+    )
+
+
+class AccessGate(BaseMiddleware):
+    """Не пускает посторонних, если включён приватный режим."""
+
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        user = data.get("event_from_user")
+        allowed, private = load_access()
+        if not private or user is None or user.id in allowed or user.id == ADMIN_ID:
+            return await handler(event, data)
+
+        # /id пускаем всегда: иначе владелец не узнает свой id, если ошибся в настройках
+        if isinstance(event, Message) and (event.text or "").startswith("/id"):
+            return await handler(event, data)
+
+        # человеку полезно узнать свой id — владелец сможет его добавить
+        text = f"🔒 Бот приватный.\n\nТвой id: <code>{user.id}</code> — пришли его владельцу."
+        if isinstance(event, Message):
+            await event.answer(text)
+        elif isinstance(event, CallbackQuery):
+            await event.answer("🔒 Бот приватный", show_alert=True)
+        return None
 
 
 def load_env() -> None:
@@ -109,6 +157,73 @@ async def help_cmd(msg: Message):
         "3. Через 1–3 минуты придёт карточка рецепта.\n\n"
         "⚠️ Закрытые аккаунты Instagram бот не прочитает — видео должно быть публичным."
     )
+
+
+def _is_admin(msg: Message) -> bool:
+    return bool(msg.from_user) and msg.from_user.id == ADMIN_ID
+
+
+@dp.message(Command("id"))
+async def id_cmd(msg: Message):
+    await msg.answer(f"Твой id: <code>{msg.from_user.id}</code>")
+
+
+@dp.message(Command("private"))
+async def private_cmd(msg: Message):
+    if not _is_admin(msg):
+        return
+    ids, _ = load_access()
+    ids.add(ADMIN_ID)
+    save_access(ids, True)
+    await msg.answer("🔒 Приватный режим включён. Доступ у: "
+                     + ", ".join(f"<code>{i}</code>" for i in sorted(ids)))
+
+
+@dp.message(Command("public"))
+async def public_cmd(msg: Message):
+    if not _is_admin(msg):
+        return
+    ids, _ = load_access()
+    save_access(ids, False)
+    await msg.answer("🔓 Бот снова открыт для всех.")
+
+
+@dp.message(Command("allow"))
+async def allow_cmd(msg: Message, command: CommandObject):
+    if not _is_admin(msg):
+        return
+    ids, private = load_access()
+    extra = {int(x) for x in (command.args or "").replace(",", " ").split() if x.strip().lstrip("-").isdigit()}
+    if not extra:
+        await msg.answer("Кого пустить? Например: <code>/allow 123456789</code>")
+        return
+    ids.update(extra)
+    save_access(ids, private)
+    await msg.answer("Готово. Доступ у: " + ", ".join(f"<code>{i}</code>" for i in sorted(ids)))
+
+
+@dp.message(Command("deny"))
+async def deny_cmd(msg: Message, command: CommandObject):
+    if not _is_admin(msg):
+        return
+    ids, private = load_access()
+    extra = {int(x) for x in (command.args or "").replace(",", " ").split() if x.strip().lstrip("-").isdigit()}
+    if not extra:
+        await msg.answer("Кого убрать? Например: <code>/deny 123456789</code>")
+        return
+    ids -= extra
+    save_access(ids, private)
+    await msg.answer("Убрано. Доступ у: " + ", ".join(f"<code>{i}</code>" for i in sorted(ids)) or "пусто")
+
+
+@dp.message(Command("access"))
+async def access_cmd(msg: Message):
+    if not _is_admin(msg):
+        return
+    ids, private = load_access()
+    state = "🔒 приватный" if private else "🔓 открыт для всех"
+    await msg.answer(f"Доступ: {state}\nСписок: "
+                     + (", ".join(f"<code>{i}</code>" for i in sorted(ids)) or "пусто"))
 
 
 @dp.message(F.text, ~F.text.startswith("/"))
@@ -303,6 +418,15 @@ async def main():
         raise SystemExit("нет TELEGRAM_BOT_TOKEN — создай бота у @BotFather и положи токен в .env")
     bot = Bot(token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     await bot.delete_webhook(drop_pending_updates=True)
+
+    # белый список: если файла нет — создаём и закрываем бота на админа
+    if not ACCESS_FILE.exists():
+        save_access({ADMIN_ID}, True)
+    ids, private = load_access()
+    print(f"доступ: {'приватный' if private else 'открытый'} · {sorted(ids)}", flush=True)
+
+    dp.message.middleware(AccessGate())
+    dp.callback_query.middleware(AccessGate())
 
     # постоянная кнопка «Рецепты» слева от поля ввода — мини-апп в один тап
     if WEBAPP_URL:
