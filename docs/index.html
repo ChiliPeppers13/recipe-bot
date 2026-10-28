@@ -110,6 +110,33 @@
       animation:pulse 1.3s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.85}}
 
+  /* ── книга рецептов ───────────────────────────────── */
+  .lib{padding:20px 18px 0}
+  .lib-title{margin:0;font-size:28px;letter-spacing:-.02em;font-weight:750}
+  .lib-sub{color:var(--muted);font-size:13.5px;margin-top:4px}
+  .search-wrap{margin:16px 0 14px}
+  .search{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font-size:15px;outline:none;font-family:inherit}
+  .search::placeholder{color:var(--muted)}
+  .search:focus{border-color:rgba(255,138,61,.5)}
+  .grid{display:flex;flex-direction:column;gap:10px}
+  .card{display:flex;align-items:center;gap:13px;padding:13px 14px;background:var(--card);
+    border:1px solid var(--line);border-radius:18px;text-decoration:none;color:var(--text);
+    transition:transform .12s, background .15s}
+  .card:active{transform:scale(.985);background:rgba(255,138,61,.07)}
+  .card-emoji{width:44px;height:44px;flex:0 0 44px;border-radius:13px;background:rgba(255,138,61,.12);
+    display:grid;place-items:center;font-size:22px}
+  .card-body{flex:1;min-width:0}
+  .card-title{font-size:15.5px;font-weight:600;line-height:1.28;
+    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .card-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
+  .card-arrow{color:var(--muted);font-size:22px;line-height:1}
+  .empty{color:var(--muted);text-align:center;padding:30px 0;font-size:14.5px}
+  .back{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;z-index:3;
+    display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:100px;
+    background:rgba(20,16,13,.55);backdrop-filter:blur(8px);color:#fff;text-decoration:none;
+    font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.14)}
+
   /* на большом экране — узкая «телефонная» колонка */
   @media (min-width: 620px){
     body{max-width:440px;margin:0 auto;background:var(--bg2);
@@ -157,6 +184,7 @@ function render(r) {
 
   $('#app').innerHTML = `
     <div class="hero">
+      <a class="back" href="#/">‹ Рецепты</a>
       ${thumb ? `<img src="${esc(thumb)}" alt="">` : ''}
       <div class="hero-in">
         <div class="badge">${esc(r.emoji || '🍳')} из видео</div>
@@ -252,30 +280,107 @@ function updateBar() {
 }
 
 /* данные: и локальный сервер, и статичный хостинг (GitHub Pages) отдают /recipes/<id>.json */
-(async () => {
+/* ── маршрутизация: #/ — книга рецептов, #r/<id> — один рецепт ── */
+const BASE = (() => {
   const parts = location.pathname.split('/').filter(Boolean);
   const onPages = location.hostname.endsWith('github.io');
-  const sub = (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
-  const m = location.hash.match(/r\/([\w-]+)/) || location.pathname.match(/\/r\/([\w-]+)/);
-  const id = m ? m[1] : 'latest';
-
-  // GitHub Pages собирает сайт с задержкой: пробуем несколько раз, прежде чем ругаться
-  for (let attempt = 0; attempt < 8; attempt++) {
-    try {
-      const res = await fetch(`${sub}/recipes/${id}.json`, { cache: 'no-store' });
-      if (res.status === 404 && attempt < 7) {
-        renderPending(attempt);
-        await new Promise(r => setTimeout(r, 2500));
-        continue;
-      }
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return render(await res.json());
-    } catch (err) {
-      if (attempt >= 7) return renderError(err);
-      await new Promise(r => setTimeout(r, 2500));
-    }
-  }
+  return (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
 })();
+
+function recipeId() {
+  const m = location.hash.match(/r\/([\w-]+)/) || location.pathname.match(/\/r\/([\w-]+)/);
+  return m ? m[1] : null;
+}
+
+/* GitHub Pages собирается с задержкой — до 8 попыток вместо голого 404 */
+async function fetchJson(url, tries = 8) {
+  let lastErr = new Error('HTTP 404');
+  for (let i = 0; i < tries; i++) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) return await res.json();
+      lastErr = new Error('HTTP ' + res.status);
+      if (res.status !== 404) throw lastErr;
+    } catch (e) {
+      lastErr = e;
+      if (String(e.message) !== 'HTTP 404' && i === tries - 1) throw e;
+    }
+    if (i < tries - 1) await new Promise(r => setTimeout(r, 2500));
+  }
+  throw lastErr;
+}
+
+function route() {
+  const id = recipeId();
+  if (id) {
+    renderPending(0);
+    fetchJson(`${BASE}/recipes/${id}.json`).then(render).catch(renderError);
+  } else {
+    renderLoading();
+    fetchJson(`${BASE}/recipes/index.json`).then(renderLibrary).catch(renderLibraryError);
+  }
+}
+window.addEventListener('hashchange', route);
+
+function plural(n) {
+  const a = n % 10, b = n % 100;
+  if (a === 1 && b !== 11) return 'рецепт';
+  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'рецепта';
+  return 'рецептов';
+}
+
+function renderLoading() {
+  $('#app').innerHTML = `<div class="lib">
+    <h1 class="lib-title">Книга рецептов</h1>
+    <div class="lib-sub">загружаю…</div>
+    <div class="grid" style="margin-top:16px">
+      ${'<div class="sk" style="height:70px;border-radius:18px"></div>'.repeat(4)}
+    </div></div>`;
+}
+
+function renderLibrary(items) {
+  if (!items.length) {
+    $('#app').innerHTML = `<div class="lib"><h1 class="lib-title">Книга рецептов</h1>
+      <div class="empty">Пока пусто. Пришли боту ссылку на видео с рецептом.</div></div>`;
+    return;
+  }
+
+  const card = it => `
+    <a class="card" href="#r/${it.id}">
+      <div class="card-emoji">${esc(it.emoji || '🍽')}</div>
+      <div class="card-body">
+        <div class="card-title">${esc(it.title)}</div>
+        <div class="card-meta">${it.time_min ? esc(it.time_min) + ' мин · ' : ''}${it.steps} ${it.steps === 1 ? 'шаг' : (it.steps < 5 ? 'шага' : 'шагов')}</div>
+      </div>
+      <div class="card-arrow">›</div>
+    </a>`;
+
+  $('#app').innerHTML = `
+    <div class="lib">
+      <h1 class="lib-title">Книга рецептов</h1>
+      <div class="lib-sub">${items.length} ${plural(items.length)}</div>
+      <div class="search-wrap">
+        <input id="q" class="search" type="search" placeholder="Поиск по названию" autocomplete="off">
+      </div>
+      <div id="cards" class="grid">${items.map(card).join('')}</div>
+      <div id="empty" class="empty" hidden>Ничего не нашлось</div>
+    </div>`;
+
+  $('#q').addEventListener('input', e => {
+    const v = e.target.value.trim().toLowerCase();
+    const found = v ? items.filter(i => (i.title || '').toLowerCase().includes(v)) : items;
+    $('#cards').innerHTML = found.map(card).join('');
+    $('#empty').hidden = found.length > 0;
+  });
+}
+
+function renderLibraryError(err) {
+  $('#app').innerHTML = `<div class="lib">
+    <h1 class="lib-title">Книга рецептов</h1>
+    <div class="empty">Не загрузилась: ${esc(err.message)}<br><br>Обнови страницу через полминуты.</div></div>`;
+}
+
+route();
 
 function renderPending(attempt) {
   if ($('#app').dataset.state === 'pending') {
