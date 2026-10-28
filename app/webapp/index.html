@@ -251,11 +251,13 @@ function updateBar() {
   $('#ingCount').textContent = done ? `готово ${done}` : `всего ${total}`;
 }
 
-/* загрузка данных: сначала с сервера, потом из встроенного JSON (демо без сети) */
+/* загрузка данных: id берём из адреса /r/<id>, иначе — последний рецепт */
 (async () => {
+  const m = location.pathname.match(/^\/r\/([\w-]+)/);
+  const src = m ? `/r/${m[1]}/recipe.json` : '/recipe.json';
   try {
-    const res = await fetch('./recipe.json', { cache: 'no-store' });
-    if (!res.ok) throw new Error(res.status);
+    const res = await fetch(src, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     render(await res.json());
   } catch (err) {
     if (window.__DEMO_RECIPE__) return render(window.__DEMO_RECIPE__);

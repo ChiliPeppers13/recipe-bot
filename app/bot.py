@@ -28,7 +28,7 @@ from aiogram.types import (
     WebAppInfo,
 )
 
-API = os.getenv("RECIPE_API", "http://127.0.0.1:8787")     # локальный сервер пайплайна
+API = os.getenv("RECIPE_API", "http://127.0.0.1:8891")     # локальный сервер пайплайна
 WEBAPP_URL = os.getenv("WEBAPP_URL", "").rstrip("/")
 
 LINK_RE = re.compile(

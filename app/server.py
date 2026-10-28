@@ -123,7 +123,7 @@ class Handler(BaseHTTPRequestHandler):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--port", type=int, default=8787)
+    ap.add_argument("--port", type=int, default=8891)
     ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
 
