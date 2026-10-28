@@ -18,26 +18,29 @@ sleep 1
 "$PY_SERVER" "$PWD/app/server.py" --port "$PORT" > logs/server.log 2>&1 &
 SERVER_PID=$!
 
-cloudflared tunnel --url "http://127.0.0.1:$PORT" --no-autoupdate > logs/tunnel.log 2>&1 &
-TUNNEL_PID=$!
+# туннель больше не нужен: мини-апп живёт на GitHub Pages.
+# Оставлен под флагом на случай локальной отладки: ./run.sh --tunnel
+if [ "${1:-}" = "--tunnel" ]; then
+  cloudflared tunnel --url "http://127.0.0.1:$PORT" --no-autoupdate > logs/tunnel.log 2>&1 &
+  TUNNEL_PID=$!
+  URL=""
+  for _ in $(seq 1 40); do
+    URL=$(grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" logs/tunnel.log 2>/dev/null | head -1)
+    [ -n "$URL" ] && break
+    sleep 1
+  done
+  echo "🌐 временный туннель: $URL"
+fi
 
+TUNNEL_PID=""
 cleanup() { kill "$SERVER_PID" "$TUNNEL_PID" "${BOT_PID:-}" 2>/dev/null; }
 trap cleanup EXIT INT TERM
 
-# ждём адрес туннеля (он каждый раз новый)
-URL=""
-for _ in $(seq 1 40); do
-  URL=$(grep -oE "https://[a-z0-9-]+\.trycloudflare\.com" logs/tunnel.log 2>/dev/null | head -1)
-  [ -n "$URL" ] && break
-  sleep 1
-done
-if [ -z "$URL" ]; then
-  echo "❌ туннель не поднялся — смотри logs/tunnel.log"
-  exit 1
-fi
-echo "🌐 мини-апп: $URL"
+# постоянный адрес мини-аппа — GitHub Pages (можно переопределить через WEBAPP_URL в .env)
+WEBAPP_URL="${WEBAPP_URL:-https://chilipeppers13.github.io/recipe-bot}"
+echo "🌐 мини-апп: $WEBAPP_URL"
 
-export WEBAPP_URL="$URL"
+export WEBAPP_URL
 "$PY_BOT" "$PWD/app/bot.py" &
 BOT_PID=$!
 

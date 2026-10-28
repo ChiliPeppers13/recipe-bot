@@ -1,7 +1,3 @@
-🌐 мини-апп: https://darwin-replied-energy-collectors.trycloudflare.com
+🌐 мини-апп: https://chilipeppers13.github.io/recipe-bot
 🤖 бот запущен — открой Telegram и пришли ссылку
 бот запущен
-Failed to fetch updates - TelegramNetworkError: HTTP Client says - ClientOSError: [Errno 54] Connection reset by peer
-Sleep for 1.000000 seconds and try again... (tryings = 0, bot id = 9231642310)
-Failed to fetch updates - TelegramNetworkError: HTTP Client says - ClientConnectorError: Cannot connect to host api.telegram.org:443 ssl:default [Connection reset by peer]
-Sleep for 1.306316 seconds and try again... (tryings = 1, bot id = 9231642310)

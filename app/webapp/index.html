@@ -256,7 +256,7 @@ function updateBar() {
   const parts = location.pathname.split('/').filter(Boolean);
   const onPages = location.hostname.endsWith('github.io');
   const sub = (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
-  const m = location.pathname.match(/\/r\/([\w-]+)/);
+  const m = location.hash.match(/r\/([\w-]+)/) || location.pathname.match(/\/r\/([\w-]+)/);
   const id = m ? m[1] : 'latest';
   try {
     const res = await fetch(`${sub}/recipes/${id}.json`, { cache: 'no-store' });

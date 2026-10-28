@@ -250,7 +250,19 @@ def build(url: str, keep_audio: bool = False) -> dict:
         )
 
     print("3/3 собираю рецепт…", flush=True)
-    return make_recipe(transcript, info)
+    text_len = len(transcript["text"].strip())
+    if text_len < 150:
+        raise ValueError(
+            f"в видео почти нет речи (расшифровка {text_len} симв.) — только музыка или тишина. "
+            "Пришли видео, где рецепт проговаривают голосом."
+        )
+
+    recipe = make_recipe(transcript, info)
+
+    # страховка от пустышки: без ингредиентов и шагов рецепта нет
+    if not recipe.get("ingredients") or not recipe.get("steps"):
+        raise ValueError("в этом видео не нашлось рецепта — модель не увидела ни ингредиентов, ни шагов.")
+    return recipe
 
 
 if __name__ == "__main__":

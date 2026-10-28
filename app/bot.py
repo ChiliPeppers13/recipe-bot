@@ -118,7 +118,7 @@ async def on_link(msg: Message):
             f"<b>{data.get('title') or 'Рецепт'} — готово!</b>",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="📖 Открыть рецепт",
-                                     web_app=WebAppInfo(url=f"{WEBAPP_URL}/r/{rid}")),
+                                     web_app=WebAppInfo(url=f"{WEBAPP_URL}/#r/{rid}")),
             ]]),
         )
     else:

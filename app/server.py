@@ -121,6 +121,16 @@ class Handler(BaseHTTPRequestHandler):
             (STORE / f"{rid}.json").write_text(
                 json.dumps(recipe, ensure_ascii=False), encoding="utf-8"
             )
+
+            # выкладываем рецепт на GitHub Pages (сайт статический)
+            try:
+                sys.path.insert(0, str(ROOT.parent / "scripts"))
+                import publish  # noqa: PLC0415
+                publish.build()
+                publish.publish(f"recipe: {recipe.get('title', rid)}")
+            except Exception as e:
+                print(f"  ⚠️  публикация не удалась: {e}", flush=True)
+
             return self._json({"id": rid, "title": recipe.get("title")})
 
         except Exception as e:                      # показываем причину, а не 500 без текста
