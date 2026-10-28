@@ -104,10 +104,17 @@ def download_audio(url: str, workdir: Path) -> tuple[Path, dict]:
             probe_out = run(_ytdlp_args("chrome") + fields)
             browser = "chrome"
         except RuntimeError as second:
+            low2 = str(second).lower()
+            if any(k in low2 for k in ("empty media", "not granting", "login", "authentication")):
+                raise ValueError(
+                    "Instagram не отдаёт это видео даже с cookies — похоже, в Chrome ты не залогинен "
+                    "(или аккаунт вышел). Зайди в Instagram в Chrome и повтори. "
+                    "Альтернатива: экспортировать cookies.txt в ~/.hermes/cache/recipe-bot/cookies.txt."
+                ) from second
             raise ValueError(
-                "Instagram не отдаёт это видео гостям, а в Chrome ты не залогинен. "
-                "Зайди в Instagram в Chrome (и не выходи) — тогда бот прочитает такие ссылки. "
-                "Альтернатива: экспортировать cookies.txt в ~/.hermes/cache/recipe-bot/cookies.txt."
+                "Instagram отбил запрос (HTTP 400) — это его антибот-защита, обычно временная. "
+                "Подожди пару минут и пришли ссылку снова; если повторяется на всех ссылках — "
+                "попробуй открыть видео в браузере, оно должно быть публичным."
             ) from second
 
     lines = probe_out.split("\n")
