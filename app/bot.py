@@ -113,9 +113,14 @@ async def on_link(msg: Message):
         return
 
     rid = data["id"]
+    live = data.get("live", True)
+    head = f"<b>{data.get('title') or 'Рецепт'} — готово!</b>"
+    if not live:
+        head += "\n<i>GitHub Pages ещё собирает страницу — открой через полминуты.</i>"
+
     if WEBAPP_URL:
         await status.edit_text(
-            f"<b>{data.get('title') or 'Рецепт'} — готово!</b>",
+            head,
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
                 InlineKeyboardButton(text="📖 Открыть рецепт",
                                      web_app=WebAppInfo(url=f"{WEBAPP_URL}/#r/{rid}")),

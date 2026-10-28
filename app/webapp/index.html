@@ -258,18 +258,47 @@ function updateBar() {
   const sub = (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
   const m = location.hash.match(/r\/([\w-]+)/) || location.pathname.match(/\/r\/([\w-]+)/);
   const id = m ? m[1] : 'latest';
-  try {
-    const res = await fetch(`${sub}/recipes/${id}.json`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    render(await res.json());
-  } catch (err) {
-    if (window.__DEMO_RECIPE__) return render(window.__DEMO_RECIPE__);
-    $('#app').innerHTML = `<div class="skel" style="padding-top:60px">
-      <div class="badge">Ошибка</div>
-      <h1 style="margin-top:8px">Не удалось загрузить рецепт</h1>
-      <p class="sub">${esc(err.message)}</p></div>`;
+
+  // GitHub Pages собирает сайт с задержкой: пробуем несколько раз, прежде чем ругаться
+  for (let attempt = 0; attempt < 8; attempt++) {
+    try {
+      const res = await fetch(`${sub}/recipes/${id}.json`, { cache: 'no-store' });
+      if (res.status === 404 && attempt < 7) {
+        renderPending(attempt);
+        await new Promise(r => setTimeout(r, 2500));
+        continue;
+      }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return render(await res.json());
+    } catch (err) {
+      if (attempt >= 7) return renderError(err);
+      await new Promise(r => setTimeout(r, 2500));
+    }
   }
 })();
+
+function renderPending(attempt) {
+  if ($('#app').dataset.state === 'pending') {
+    $('#pendingTxt').textContent = `ещё собирается… ${attempt + 1}/8`;
+    return;
+  }
+  $('#app').dataset.state = 'pending';
+  $('#app').innerHTML = `<div class="skel" style="padding-top:64px">
+    <div class="badge">Публикация</div>
+    <h1 style="margin-top:8px">Рецепт ещё выкладывается</h1>
+    <p class="sub" id="pendingTxt">ещё собирается… ${attempt + 1}/8</p>
+    <p class="sub" style="margin-top:14px">GitHub Pages обновляется ~30 секунд. Обнови страницу, если долго.</p>
+  </div>`;
+}
+
+function renderError(err) {
+  $('#app').innerHTML = `<div class="skel" style="padding-top:60px">
+    <div class="badge">Ошибка</div>
+    <h1 style="margin-top:8px">Не удалось загрузить рецепт</h1>
+    <p class="sub">${esc(err.message)}</p>
+    <p class="sub" style="margin-top:12px">Если только что добавил — подожди полминуты и обнови.</p>
+  </div>`;
+}
 </script>
 </body>
 </html>

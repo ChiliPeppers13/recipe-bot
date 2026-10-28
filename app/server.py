@@ -17,9 +17,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import threading
+import time
 import traceback
+import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -27,6 +30,9 @@ from pathlib import Path
 ROOT = Path(__file__).parent
 WEBAPP = ROOT / "webapp" / "index.html"
 STORE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "store"
+
+# куда публикуется сайт — нужен, чтобы дождаться сборки Pages перед ответом боту
+WEBAPP_BASE = os.getenv("WEBAPP_URL", "https://chilipeppers13.github.io/recipe-bot").rstrip("/")
 
 sys.path.insert(0, str(ROOT))
 from pipeline import build  # noqa: E402
@@ -43,6 +49,23 @@ def latest_id() -> str | None:
 def find_recipe(rid: str) -> dict | None:
     path = STORE / f"{rid}.json"
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def wait_until_live(rid: str, timeout: float = 100.0) -> bool:
+    """GitHub Pages собирает сайт не мгновенно: без ожидания кнопка ведёт на 404."""
+    url = f"{WEBAPP_BASE}/recipes/{rid}.json"
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=8) as r:
+                if r.status == 200:
+                    print(f"  страница готова: {url}", flush=True)
+                    return True
+        except Exception:
+            pass
+        time.sleep(3)
+    print(f"  ⚠️  страница не появилась за {int(timeout)} c: {url}", flush=True)
+    return False
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -123,15 +146,17 @@ class Handler(BaseHTTPRequestHandler):
             )
 
             # выкладываем рецепт на GitHub Pages (сайт статический)
+            live = False
             try:
                 sys.path.insert(0, str(ROOT.parent / "scripts"))
                 import publish  # noqa: PLC0415
                 publish.build()
-                publish.publish(f"recipe: {recipe.get('title', rid)}")
+                if publish.publish(f"recipe: {recipe.get('title', rid)}"):
+                    live = wait_until_live(rid)      # без этого кнопка в боте ведёт на 404
             except Exception as e:
                 print(f"  ⚠️  публикация не удалась: {e}", flush=True)
 
-            return self._json({"id": rid, "title": recipe.get("title")})
+            return self._json({"id": rid, "title": recipe.get("title"), "live": live})
 
         except Exception as e:                      # показываем причину, а не 500 без текста
             traceback.print_exc()
