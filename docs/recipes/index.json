@@ -1,5 +1,15 @@
 [
  {
+  "id": "8b437aa6f5",
+  "title": "Тестовый суп",
+  "emoji": "🍲",
+  "time_min": 30,
+  "steps": 4,
+  "platform": "text",
+  "thumb": "",
+  "added": 1793251286
+ },
+ {
   "id": "2bcbd733a2",
   "title": "Тестовый суп",
   "emoji": "🍲",
