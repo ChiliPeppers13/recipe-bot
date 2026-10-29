@@ -7,13 +7,14 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
-    --bg:#141110; --bg2:#1b1614; --card:#221c19; --line:rgba(255,255,255,.08);
-    --text:#f7f0e8; --muted:#a3948a; --accent:#ff8a3d; --accent2:#ffb347;
-    --ok:#54c98a; --danger:#ff7a63; --r:18px; --nav:64px;
+    --bg:#f2f2f7; --bg2:#ffffff; --card:#ffffff; --line:rgba(60,60,67,.16);
+    --text:#000000; --muted:#8e8e93; --accent:#007aff; --accent2:#007aff;
+    --ok:#34c759; --danger:#ff3b30; --r:14px; --nav:56px;
   }
-  @media (prefers-color-scheme: light){
-    :root{ --bg:#fbf7f2; --bg2:#fff; --card:#fff; --line:rgba(0,0,0,.09);
-           --text:#22190f; --muted:#8b7c6f; }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#000000; --bg2:#1c1c1e; --card:#1c1c1e; --line:rgba(84,84,88,.5);
+           --text:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent2:#0a84ff;
+           --ok:#30d158; --danger:#ff453a; }
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);overflow-x:hidden;
@@ -23,7 +24,8 @@
   a{color:inherit}
 
   .nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
-    background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+    background:color-mix(in srgb, var(--bg2) 86%, transparent);backdrop-filter:saturate(180%) blur(20px);
+    border-top:.5px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
   .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;
     background:none;border:0;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
   .nav-btn svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;
@@ -37,19 +39,19 @@
   .sub{color:var(--muted);font-size:13.5px;margin-top:3px}
   .row{display:flex;gap:10px;align-items:center}
   .grow{flex:1;min-width:0}
-  .btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:14px;
+  .btn{border:.5px solid var(--line);background:var(--card);color:var(--text);border-radius:14px;
     padding:12px 14px;font-size:14.5px;font-weight:600;cursor:pointer}
-  .btn.primary{background:var(--accent);border-color:transparent;color:#20100a}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#ffffff}
   .btn.ghost{background:transparent}
-  .btn.danger{color:var(--danger);border-color:rgba(255,122,99,.35)}
+  .btn.danger{color:var(--danger);border-color:rgba(255,59,48,.35)}
   .input{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
     background:var(--card);color:var(--text);font-size:15px;outline:none}
-  .input:focus{border-color:rgba(255,138,61,.55)}
+  .input:focus{border-color:rgba(0,122,255,.5)}
   .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0;scrollbar-width:none}
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:0 0 auto;padding:8px 13px;border-radius:100px;border:1px solid var(--line);
     background:var(--card);color:var(--muted);font-size:13.5px;font-weight:600;cursor:pointer}
-  .chip.on{background:rgba(255,138,61,.16);border-color:rgba(255,138,61,.45);color:var(--accent2)}
+  .chip.on{background:rgba(0,122,255,.12);border-color:rgba(0,122,255,.4);color:var(--accent2)}
   .empty{color:var(--muted);text-align:center;padding:40px 10px;font-size:14.5px;line-height:1.6}
   .sk{height:74px;border-radius:var(--r);background:var(--card);margin-bottom:10px;
     animation:pulse 1.3s ease-in-out infinite}
@@ -60,7 +62,7 @@
     border:1px solid var(--line);border-radius:var(--r);text-decoration:none;color:var(--text)}
   .rc:active{transform:scale(.99)}
   .thumb{width:62px;height:62px;flex:0 0 62px;border-radius:14px;overflow:hidden;
-    background:rgba(255,138,61,.12);display:grid;place-items:center;font-size:26px}
+    background:rgba(0,122,255,.10);display:grid;place-items:center;font-size:26px}
   .thumb img{width:100%;height:100%;object-fit:cover}
   .rc-title{font-size:15.5px;font-weight:650;line-height:1.25;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -76,8 +78,8 @@
     display:inline-flex;gap:6px;align-items:center;padding:7px 12px;border-radius:100px;
     background:rgba(20,16,13,.6);color:#fff;text-decoration:none;
     font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.15)}
-  .badge{display:inline-flex;gap:6px;align-items:center;background:rgba(255,138,61,.16);
-    color:var(--accent2);border:1px solid rgba(255,138,61,.35);border-radius:100px;
+  .badge{display:inline-flex;gap:6px;align-items:center;background:rgba(0,122,255,.12);
+    color:var(--accent);border:.5px solid rgba(0,122,255,.3);border-radius:100px;
     padding:5px 11px;font-size:12px;font-weight:650;margin-bottom:8px}
   .meta{display:flex;gap:8px;overflow-x:auto;padding:14px 0 0;scrollbar-width:none}
   .meta::-webkit-scrollbar{display:none}
@@ -100,7 +102,7 @@
   .step{display:flex;gap:12px;padding:13px 14px;background:var(--card);border:1px solid var(--line);
     border-radius:var(--r);margin-bottom:9px;cursor:pointer}
   .step.done{opacity:.5}
-  .num{flex:0 0 28px;height:28px;border-radius:9px;background:rgba(255,138,61,.14);
+  .num{flex:0 0 28px;height:28px;border-radius:9px;background:rgba(0,122,255,.12);
     color:var(--accent2);display:grid;place-items:center;font-size:13.5px;font-weight:700}
   .at{display:inline-block;margin-top:8px;padding:4px 9px;border-radius:8px;font-size:12px;
     background:rgba(255,255,255,.06);color:var(--accent2);font-weight:600}
@@ -121,8 +123,8 @@
   .edit-input.qty{flex:0 0 34%}
   .edit-area{flex:1;min-height:62px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
     background:var(--card);color:var(--text);font-size:15px;resize:vertical;outline:none}
-  .x{flex:0 0 34px;height:34px;border-radius:10px;border:1px solid rgba(255,122,99,.3);
-    background:rgba(255,122,99,.1);color:var(--danger);font-size:15px;cursor:pointer}
+  .x{flex:0 0 34px;height:34px;border-radius:10px;border:1px solid rgba(255,59,48,.3);
+    background:rgba(255,59,48,.1);color:var(--danger);font-size:15px;cursor:pointer}
   .add{width:100%;padding:11px;border-radius:12px;border:1px dashed var(--line);background:transparent;
     color:var(--muted);font-size:14px;cursor:pointer;margin-top:2px}
 
@@ -170,6 +172,23 @@
 <script>
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
+
+/* берём цвета из темы Телеграма, чтобы приложение не спорило с ним */
+function applyTelegramTheme() {
+  const t = tg && tg.themeParams;
+  if (!t) return;
+  const root = document.documentElement.style;
+  const map = {
+    bg_color: '--bg', secondary_bg_color: '--bg2', text_color: '--text',
+    hint_color: '--muted', button_color: '--accent', link_color: '--accent2',
+    destructive_text_color: '--danger',
+  };
+  for (const [k, v] of Object.entries(map)) if (t[k]) root.setProperty(v, t[k]);
+  root.setProperty('--card', t.secondary_bg_color || (tg.colorScheme === 'dark' ? '#1c1c1e' : '#ffffff'));
+  root.setProperty('--line', tg.colorScheme === 'dark' ? 'rgba(84,84,88,.5)' : 'rgba(60,60,67,.16)');
+}
+applyTelegramTheme();
+tg?.onEvent?.('themeChanged', applyTelegramTheme);
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
