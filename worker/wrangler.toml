@@ -1,0 +1,12 @@
+name = "recipe-api"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# база: заполняется после `wrangler d1 create recipes` (scripts/deploy_worker.sh подставит сам)
+[[d1_databases]]
+binding = "DB"
+database_name = "recipes"
+database_id = "local-dev"
+
+[vars]
+ALLOWED = "184333195,168794359"
