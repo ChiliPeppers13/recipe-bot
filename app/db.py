@@ -63,6 +63,14 @@ CREATE TABLE IF NOT EXISTS shopping (
     created  REAL
 );
 
+CREATE TABLE IF NOT EXISTS pantry (
+    id      INTEGER PRIMARY KEY AUTOINCREMENT,
+    name    TEXT NOT NULL UNIQUE,
+    have    INTEGER DEFAULT 0,
+    cat     TEXT DEFAULT 'прочее',
+    created REAL
+);
+
 CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT
@@ -226,8 +234,28 @@ def toggle_favorite(rid: str) -> bool:
     return bool(new)
 
 
+def banned_terms() -> list[str]:
+    """Что исключить: настройки «исключаемые» + «аллергены» (по-русски и в нижнем регистре)."""
+    st = get_settings()
+    out: list[str] = []
+    for key in ("exclude", "allergens"):
+        try:
+            out += [str(x).strip().lower() for x in json.loads(st.get(key) or "[]") if str(x).strip()]
+        except Exception:
+            continue
+    return out
+
+
+def _is_banned(recipe: dict, banned: list[str]) -> bool:
+    if not banned:
+        return False
+    text = " ".join((i.get("name") or "") for i in (recipe.get("ingredients") or [])).lower()
+    return any(b in text for b in banned)
+
+
 def list_recipes(q: str = "", category: str = "", tag: str = "", max_time: int = 0,
-                 favorite_only: bool = False, ingredient: str = "") -> list[dict]:
+                 favorite_only: bool = False, ingredient: str = "",
+                 exclude: list[str] | None = None) -> list[dict]:
     """Лёгкий список для каталога + полноценные данные для карточек."""
     sql = "SELECT * FROM recipes WHERE 1=1"
     args: list = []
@@ -252,7 +280,9 @@ def list_recipes(q: str = "", category: str = "", tag: str = "", max_time: int =
     sql += " ORDER BY created DESC"
     with connect() as con:
         rows = con.execute(sql, args).fetchall()
-    return [_row_to_recipe(r) for r in rows]
+    recipes = [_row_to_recipe(r) for r in rows]
+    banned = [b.lower() for b in (exclude or [])]
+    return [r for r in recipes if not _is_banned(r, banned)]
 
 
 def all_categories() -> list[dict]:
@@ -448,6 +478,59 @@ def shopping_delete(sid: int) -> None:
 def shopping_clear(done_only: bool = False) -> None:
     with connect() as con:
         con.execute("DELETE FROM shopping WHERE done = 1" if done_only else "DELETE FROM shopping")
+
+
+# --- кладовка (что обычно лежит дома) --------------------------------------
+
+def pantry_all() -> list[dict]:
+    with connect() as con:
+        rows = con.execute("SELECT * FROM pantry ORDER BY have DESC, cat, name").fetchall()
+    return [dict(r) for r in rows]
+
+
+def pantry_have() -> list[str]:
+    with connect() as con:
+        rows = con.execute("SELECT name FROM pantry WHERE have = 1 ORDER BY name").fetchall()
+    return [r["name"] for r in rows]
+
+
+def pantry_add(name: str) -> int:
+    name = (name or "").strip()
+    if not name:
+        return 0
+    with connect() as con:
+        cur = con.execute(
+            "INSERT OR IGNORE INTO pantry(name, have, cat, created) VALUES (?, 1, ?, ?)",
+            (name, guess_category(name), time.time()),
+        )
+        return cur.lastrowid or 0
+
+
+def pantry_toggle(pid: int) -> None:
+    with connect() as con:
+        con.execute("UPDATE pantry SET have = 1 - have WHERE id = ?", (pid,))
+
+
+def pantry_delete(pid: int) -> None:
+    with connect() as con:
+        con.execute("DELETE FROM pantry WHERE id = ?", (pid,))
+
+
+def pantry_seed_defaults() -> int:
+    """Первый запуск: базовый набор, чтобы кладовка не была пустой."""
+    base = ["соль", "перец", "масло растительное", "мука", "сахар", "яйца",
+            "молоко", "лук", "чеснок", "помидоры", "сыр"]
+    with connect() as con:
+        n = con.execute("SELECT COUNT(*) c FROM pantry").fetchone()["c"]
+    if n:
+        return 0
+    for name in base:
+        pantry_add(name)
+    with connect() as con:                       # в базовом наборе отмечаем только специи и мелочь
+        con.execute("UPDATE pantry SET have = 0")
+        for name in ("соль", "перец", "масло растительное", "мука", "сахар"):
+            con.execute("UPDATE pantry SET have = 1 WHERE name = ?", (name,))
+    return len(base)
 
 
 # --- настройки -------------------------------------------------------------

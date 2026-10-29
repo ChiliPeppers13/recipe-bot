@@ -304,11 +304,12 @@ function route() {
   const h = location.hash.replace(/^#\/?/, '');
   const m = h.match(/^r\/([\w-]+)/);
   if (m) return openRecipe(m[1]);
-  const view = ['plan', 'shop', 'settings'].includes(h) ? h : 'list';
+  const view = ['plan', 'shop', 'settings', 'pantry'].includes(h) ? h : 'list';
   if (view === 'list') renderList();
   if (view === 'plan') renderPlan();
   if (view === 'shop') renderShop();
   if (view === 'settings') renderSettings();
+  if (view === 'pantry') renderPantry();
 }
 window.addEventListener('hashchange', route);
 
@@ -348,6 +349,7 @@ async function renderList() {
     <div id="haveBox" style="display:${state.filters.have ? 'block' : 'none'};margin-top:10px">
       <input class="input" id="have" placeholder="помидоры, яйца, сыр" value="${esc((state.filters.have || '').trim())}">
     </div>
+    <div id="banNote" class="sub" style="margin-top:8px;display:none"></div>
     <div id="list" class="list" style="margin-top:14px"><div class="sk"></div><div class="sk"></div></div>
   </div>`;
 
@@ -358,11 +360,10 @@ async function renderList() {
   document.getElementById('favBtn').onclick = () => { state.filters.favorite = !state.filters.favorite; renderList(); };
   document.getElementById('timeBtn').onclick = () => { state.filters.max_time = state.filters.max_time ? 0 : 30; renderList(); };
   document.getElementById('haveBtn').onclick = () => {
-    state.filters.have = state.filters.have ? '' : ' ';
-    renderList();
-    const box = document.getElementById('have');
-    if (state.filters.have && box) box.focus();
+    if (state.filters.have) { state.filters.have = ''; renderList(); }   // сброс подбора
+    else location.hash = '#/pantry';                                     // кладовка
   };
+  document.getElementById('pantryLink')?.addEventListener('click', () => { location.hash = '#/pantry'; });
   const have = document.getElementById('have');
   if (have) have.oninput = () => { state.filters.have = have.value; clearTimeout(t); t = setTimeout(loadList, 320); };
 
@@ -375,6 +376,12 @@ async function renderList() {
       `<button class="chip ${state.filters.category === c.name ? 'on' : ''}" data-cat="${esc(c.name)}">${esc(c.name)} <span style="opacity:.6">${c.count}</span></button>`).join('');
   $$('[data-cat]').forEach(b => b.onclick = () => { state.filters.category = b.dataset.cat; renderList(); });
 
+  const ban = [].concat(JSON.parse(state.settings.exclude || '[]'), JSON.parse(state.settings.allergens || '[]'));
+  if (ban.length) {
+    const note = document.getElementById('banNote');
+    note.style.display = 'block';
+    note.textContent = 'скрываю рецепты с: ' + ban.join(', ');
+  }
   loadList();
 }
 
@@ -855,6 +862,69 @@ async function renderShop() {
     try { await post('/api/shopping', { action: 'clear', done_only: true }); renderShop(); }
     catch (e) { toast('Не вышло: ' + e.message); }
   });
+}
+
+/* ─── 4.5 кладовка ─── */
+async function renderPantry() {
+  drawNav('list');
+  const items = (await api('/api/pantry')) || [];
+  const have = items.filter(i => i.have).map(i => i.name);
+
+  document.getElementById('app').innerHTML = `<div class="page">
+    <a class="back" href="#/">‹ Рецепты</a>
+    <div style="padding-top:34px">
+      <h1>Кладовка</h1>
+      <div class="sub">Отметь, что есть дома. Приложение не угадывает — только твои галочки.</div>
+
+      <div class="chips" style="margin-top:16px;flex-wrap:wrap;overflow:visible">
+        ${items.map(i => `
+          <button class="chip ${i.have ? 'on' : ''}" data-pid="${i.id}" style="display:inline-flex;gap:7px;align-items:center">
+            ${i.have ? '✓' : '○'} ${esc(i.name)}
+            <span data-delp="${i.id}" style="opacity:.55;font-weight:700;padding:0 2px">✕</span>
+          </button>`).join('') || '<div class="sub">Список пуст — добавь продукты ниже</div>'}
+      </div>
+
+      <div class="row" style="margin-top:18px">
+        <input class="input" id="pName" placeholder="добавить продукт">
+        <button class="btn primary" id="pAdd" style="padding:12px 16px">＋</button>
+      </div>
+
+      <button class="btn primary" id="pFind" ${have.length ? '' : 'disabled'}
+        style="width:100%;margin-top:18px${have.length ? '' : ';opacity:.45'}">
+        Подобрать рецепты (${have.length})
+      </button>
+
+      ${have.length ? `<button class="btn ghost" id="pClear" style="width:100%;margin-top:8px">Снять все галочки</button>` : ''}
+      <div style="height:20px"></div>
+    </div>
+  </div>`;
+
+  document.getElementById('pAdd').onclick = async () => {
+    const name = document.getElementById('pName').value.trim();
+    if (!name) return;
+    try { await post('/api/pantry', { action: 'add', name }); renderPantry(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  };
+  document.getElementById('pName').onkeydown = e => { if (e.key === 'Enter') document.getElementById('pAdd').click(); };
+
+  $$('[data-delp]').forEach(el => el.onclick = async e => {
+    e.stopPropagation();
+    try { await post('/api/pantry', { action: 'delete', id: +el.dataset.delp }); renderPantry(); }
+    catch (err) { toast('Не вышло: ' + err.message); }
+  });
+  $$('[data-pid]').forEach(el => el.onclick = async () => {
+    try { await post('/api/pantry', { action: 'toggle', id: +el.dataset.pid }); renderPantry(); }
+    catch (err) { toast('Не вышло: ' + err.message); }
+  });
+  document.getElementById('pClear')?.addEventListener('click', async () => {
+    try { await post('/api/pantry', { action: 'clear_have' }); renderPantry(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  });
+  document.getElementById('pFind').onclick = () => {
+    if (!have.length) return toast('Отметь хотя бы один продукт');
+    state.filters.have = have.join(', ');
+    location.hash = '#/';
+  };
 }
 
 /* ─── 5. настройки ─── */

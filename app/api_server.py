@@ -114,13 +114,16 @@ def public_recipe(rec: dict) -> dict:
     return out
 
 
-def suggest_by_ingredients(have: list[str], limit: int = 20) -> list[dict]:
+def suggest_by_ingredients(have: list[str], limit: int = 20, exclude: list[str] | None = None) -> list[dict]:
     """Подбор из СВОЕЙ книги: сколько ингредиентов уже есть под рукой."""
     have_low = [h.strip().lower() for h in have if h.strip()]
     if not have_low:
         return []
     out = []
+    banned = [b.lower() for b in (exclude or [])]
     for rec in db.list_recipes():
+        if db._is_banned(rec, banned):
+            continue
         ings = [(i.get("name") or "").lower() for i in rec.get("ingredients") or []]
         if not ings:
             continue
@@ -222,6 +225,7 @@ class Handler(BaseHTTPRequestHandler):
                 max_time=int(one("max_time", "0") or 0),
                 favorite_only=one("favorite") == "1",
                 ingredient=one("ingredient"),
+                exclude=db.banned_terms(),     # «исключить ингредиенты» и аллергены реально работают
             )
             return self._json([{
                 "id": r["id"], "title": r["title"], "subtitle": r.get("subtitle"),
@@ -259,7 +263,12 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/suggest":
             have = [h for h in one("have").split(",") if h.strip()]
-            return self._json(suggest_by_ingredients(have))
+            if not have:
+                have = db.pantry_have()          # продукты из кладовки
+            return self._json(suggest_by_ingredients(have, exclude=db.banned_terms()))
+
+        if path == "/api/pantry":
+            return self._json(db.pantry_all())
 
         if path == "/api/latest":
             rows = db.export_rows()
@@ -273,7 +282,7 @@ class Handler(BaseHTTPRequestHandler):
         allowed = (
             "/api/import", "/api/text", "/api/page",      # бот: импорт без подписи
             "/api/save", "/api/delete", "/api/favorite",  # мини-апп
-            "/api/plan", "/api/shopping", "/api/settings", "/api/edit",
+            "/api/plan", "/api/shopping", "/api/settings", "/api/edit", "/api/pantry",
         )
         if route not in allowed:
             return self._json({"error": "не найдено"}, 404)
@@ -286,7 +295,8 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "плохой JSON"}, 400)
 
         who = self._who() if route not in ("/api/import", "/api/text", "/api/page") else None
-        if route in ("/api/save", "/api/delete", "/api/favorite", "/api/plan", "/api/shopping", "/api/settings") and not who:
+        if route in ("/api/save", "/api/delete", "/api/favorite", "/api/plan",
+                     "/api/shopping", "/api/settings", "/api/pantry") and not who:
             return self._json({"error": "нет доступа: открой экран из Телеграма"}, 403)
 
         try:
@@ -388,6 +398,23 @@ class Handler(BaseHTTPRequestHandler):
                     return self._json({"error": "неизвестное действие"}, 400)
                 return self._json({"ok": True, "items": db.get_shopping()})
 
+            # ---------- кладовка ----------
+            if route == "/api/pantry":
+                action = payload.get("action")
+                if action == "add":
+                    db.pantry_add(payload.get("name", ""))
+                elif action == "toggle":
+                    db.pantry_toggle(int(payload["id"]))
+                elif action == "delete":
+                    db.pantry_delete(int(payload["id"]))
+                elif action == "clear_have":
+                    for row in db.pantry_all():
+                        if row["have"]:
+                            db.pantry_toggle(row["id"])
+                else:
+                    return self._json({"error": "неизвестное действие"}, 400)
+                return self._json({"ok": True, "items": db.pantry_all()})
+
             # ---------- настройки ----------
             if route == "/api/settings":
                 return self._json(db.set_settings(payload.get("patch") or {}))
@@ -413,6 +440,9 @@ def main() -> None:
     args = ap.parse_args()
 
     db.init()
+    seeded = db.pantry_seed_defaults()
+    if seeded:
+        print(f"кладовка: добавлен базовый набор ({seeded} продуктов)", flush=True)
     srv = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"API: http://{args.host}:{args.port} · база: {db.DB_PATH}", flush=True)
     try:
