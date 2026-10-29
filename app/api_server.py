@@ -85,6 +85,29 @@ def allowed_users() -> tuple[set[int], bool]:
     return set(), False
 
 
+WORKER_URL_FILE = ROOT / ".worker_url"
+SYNC_KEY_FILE = ROOT / ".sync_key"
+
+
+def sync_to_worker(recipe: dict | None = None, delete_id: str | None = None) -> None:
+    """Отправляем рецепт в облако (D1). Мак становится необязательным для чтения и правок."""
+    try:
+        base = WORKER_URL_FILE.read_text().strip().rstrip("/")
+        key = SYNC_KEY_FILE.read_text().strip()
+    except Exception:
+        return                                   # облако ещё не настроено — молча живём локально
+    if not base:
+        return
+    body = json.dumps({"delete": delete_id} if delete_id else {"recipe": recipe}).encode()
+    req = urllib.request.Request(f"{base}/api/sync", data=body, method="POST",
+                                 headers={"Content-Type": "application/json", "X-Sync-Key": key})
+    try:
+        with urllib.request.urlopen(req, timeout=25) as r:
+            r.read()
+    except Exception as e:
+        print(f"sync: не отправлено ({str(e)[:120]})", flush=True)
+
+
 def publish_now(message: str, wait_for: str = "") -> bool:
     """Пересобрать сайт и запушить. Если ждём — дождаться появления файла на Pages."""
     try:
@@ -338,6 +361,7 @@ class Handler(BaseHTTPRequestHandler):
                 for i, s in enumerate(merged["steps"], 1):
                     s["n"] = i
                 db.save_recipe(merged, rid=rid)
+                sync_to_worker(recipe=db.get_recipe(rid))
                 publish_now(f"edit: {merged.get('title')}")
                 return self._json({"id": rid, "ok": True})
 
@@ -355,6 +379,8 @@ class Handler(BaseHTTPRequestHandler):
 
             if route == "/api/delete":
                 title = db.delete_recipe((payload.get("id") or "").strip())
+                if title is not None:
+                    sync_to_worker(delete_id=payload["id"])
                 if title is None:
                     return self._json({"error": "рецепт не найден"}, 404)
                 publish_now(f"delete: {title}")
@@ -429,6 +455,10 @@ class Handler(BaseHTTPRequestHandler):
         if dup:
             return {"duplicate": True, "id": dup["id"], "title": dup["title"]}
         rid = db.save_recipe(recipe)
+        saved = db.get_recipe(rid)
+        if saved:
+            saved["transcript"] = recipe.get("transcript") or ""     # в облако уходит и расшифровка
+            sync_to_worker(recipe=saved)
         live = publish_now(f"recipe: {recipe.get('title')}", wait_for=rid)
         return {"id": rid, "title": recipe.get("title"), "live": live, "duplicate": False}
 

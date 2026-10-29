@@ -15,6 +15,18 @@ async function hmac(key, msg) {
   return new Uint8Array(await crypto.subtle.sign("HMAC", k, msg));
 }
 
+async function cfg(env, db) {
+  let bot = env.BOT_TOKEN || "";
+  let sync = env.SYNC_KEY || "";
+  if (!bot || !sync) {
+    try {
+      const { results } = await db.prepare("SELECT name, value FROM secrets").all();
+      for (const r of results) { if (r.name === "bot") bot = bot || r.value; if (r.name === "sync") sync = sync || r.value; }
+    } catch { /* таблицы ещё нет — значит не настроено */ }
+  }
+  return { bot, sync };
+}
+
 async function whoami(initData, token) {
   if (!initData || !token) return null;
   const p = new URLSearchParams(initData);
@@ -170,21 +182,41 @@ export default {
       if (path === "/api/import" || path === "/api/page" || path === "/api/text")
         return out({ error: "импорт работает только когда включён мак" }, 503);
 
+      if (path === "/api/bootstrap") {
+        const c = await cfg(env, db);
+        if (c.bot && c.sync) return out({ error: "уже настроено" }, 409);
+        const bot = String(body.bot_token || "").trim();
+        const sync = String(body.sync_key || "").trim();
+        if (!bot || !sync) return out({ error: "нужны bot_token и sync_key" }, 400);
+        const me = await fetch(`https://api.telegram.org/bot${bot}/getMe`).then((r) => r.json()).catch(() => null);
+        if (!me || !me.ok) return out({ error: "Telegram не подтвердил токен" }, 400);
+        await db.prepare("CREATE TABLE IF NOT EXISTS secrets (name TEXT PRIMARY KEY, value TEXT)").run();
+        await db.batch([
+          db.prepare("INSERT OR REPLACE INTO secrets(name,value) VALUES ('bot',?)").bind(bot),
+          db.prepare("INSERT OR REPLACE INTO secrets(name,value) VALUES ('sync',?)").bind(sync),
+        ]);
+        return out({ ok: true, bot: me.result.username });
+      }
+
       if (path === "/api/sync" || path === "/api/seed") {
-        if (!env.SYNC_KEY || req.headers.get("X-Sync-Key") !== env.SYNC_KEY) return out({ error: "нет доступа" }, 403);
+        const c = await cfg(env, db);
+        if (!c.sync || req.headers.get("X-Sync-Key") !== c.sync) return out({ error: "нет доступа" }, 403);
 
         if (path === "/api/seed") {
           const text = await (await fetch(body.url)).text();
           const stmts = text.split(";\n").map((s) => s.trim()).filter((s) => s && !s.startsWith("--"));
           let ok = 0;
           const bad = [];
-          for (let i = 0; i < stmts.length; i += 40) {
-            const chunk = stmts.slice(i, i + 40);
-            try { await db.batch(chunk.map((s) => db.prepare(s))); ok += chunk.length; }
-            catch (e) { bad.push(String(e.message || e).slice(0, 120)); }
+          for (const s of stmts) {
+            // DDL и INSERT по одному: batch откатывает весь блок, если в нём есть CREATE
+            try { await db.prepare(s).run(); ok++; }
+            catch (e) {
+              if (!/already exists|UNIQUE constraint/i.test(String(e.message || e))) bad.push(String(e.message || e).slice(0, 140));
+            }
           }
-          const n = (await db.prepare("SELECT COUNT(*) c FROM recipes").first()).c;
-          return out({ statements: stmts.length, applied: ok, errors: bad, recipes: n });
+          let n = 0;
+          try { n = (await db.prepare("SELECT COUNT(*) c FROM recipes").first()).c; } catch { n = -1; }
+          return out({ statements: stmts.length, applied: ok, errors: bad.slice(0, 5), recipes: n });
         }
 
         if (body.delete) { await db.prepare("DELETE FROM recipes WHERE id = ?").bind(body.delete).run(); return out({ ok: true }); }
@@ -202,7 +234,8 @@ export default {
         return out({ ok: true, id });
       }
 
-      const user = await whoami(req.headers.get("X-TG-Init-Data") || "", env.BOT_TOKEN);
+      const cf = await cfg(env, db);
+      const user = await whoami(req.headers.get("X-TG-Init-Data") || "", cf.bot);
       const allow = (env.ALLOWED || "").split(",").map((s) => s.trim()).filter(Boolean);
       if (!user || !allow.includes(String(user.id))) return out({ error: "нет доступа" }, 403);
 
