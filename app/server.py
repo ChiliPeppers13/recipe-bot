@@ -16,12 +16,15 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import hmac
 import json
 import os
 import sys
 import threading
 import time
 import traceback
+import urllib.parse
 import urllib.request
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,6 +36,48 @@ STORE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "store"
 
 # куда публикуется сайт — нужен, чтобы дождаться сборки Pages перед ответом боту
 WEBAPP_BASE = os.getenv("WEBAPP_URL", "https://chilipeppers13.github.io/recipe-bot").rstrip("/")
+
+# доступ и подпись Telegram: мини-апп присылает initData, сервер проверяет её токеном бота
+ACCESS_FILE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "allowed.json"
+
+
+def _bot_token() -> str:
+    for line in (ROOT.parent / ".env").read_text(encoding="utf-8").splitlines():
+        if line.startswith("TELEGRAM_BOT_TOKEN="):
+            return line.split("=", 1)[1].strip()
+    return os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+
+BOT_TOKEN = _bot_token()
+
+
+def verify_init_data(init_data: str, max_age: int = 86400) -> dict | None:
+    """Проверяем подпись initData (алгоритм Telegram WebApp) и свежесть."""
+    if not init_data or not BOT_TOKEN:
+        return None
+    try:
+        pairs = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
+        received = pairs.pop("hash", "")
+        check_string = "\n".join(f"{k}={v}" for k, v in sorted(pairs.items()))
+        secret = hmac.new(b"WebAppData", BOT_TOKEN.encode(), hashlib.sha256).digest()
+        calc = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(calc, received):
+            return None
+        if time.time() - int(pairs.get("auth_date", "0")) > max_age:
+            return None
+        return json.loads(pairs.get("user", "{}"))
+    except Exception:
+        return None
+
+
+def allowed_users() -> tuple[set[int], bool]:
+    if ACCESS_FILE.exists():
+        try:
+            d = json.loads(ACCESS_FILE.read_text(encoding="utf-8"))
+            return {int(x) for x in d.get("allowed", [])}, bool(d.get("private", False))
+        except Exception as e:
+            print(f"⚠️  не прочитал {ACCESS_FILE}: {e}", flush=True)
+    return set(), False
 
 sys.path.insert(0, str(ROOT))
 from pipeline import build, edit_recipe, from_page, from_source_text  # noqa: E402
@@ -81,10 +126,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # мини-апп живёт на github.io и стучится сюда кросс-доменно
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-TG-Init-Data")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         for k, v in (extra or {}).items():
             self.send_header(k, v)
         self.end_headers()
         self.wfile.write(body)
+
+    def do_OPTIONS(self):
+        self._send(204, b"")
 
     def _json(self, obj, code: int = 200):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode())
@@ -167,17 +219,34 @@ class Handler(BaseHTTPRequestHandler):
     def _recipe_by_id(self, rid: str) -> dict | None:
         return find_recipe(rid)
 
+    def _who(self) -> dict | None:
+        """Кто стучится: проверяем подпись initData от Telegram и белый список."""
+        user = verify_init_data(self.headers.get("X-TG-Init-Data") or "")
+        if not user:
+            return None
+        ids, private = allowed_users()
+        if private and int(user.get("id", 0)) not in ids:
+            return None
+        return user
+
     def do_POST(self):
         route = self.path.split("?")[0]
-        allowed = ("/api/recipe", "/api/text", "/api/page", "/api/edit", "/api/delete")
+        allowed = ("/api/recipe", "/api/text", "/api/page", "/api/edit", "/api/delete", "/api/save")
         if route not in allowed:
             return self._json({"error": "not found"}, 404)
 
+        # тело читаем ДО любых отказов: иначе остаток висит в соединении
+        # (туннель переиспользует keep-alive, и следующий запрос ломается)
         try:
             length = int(self.headers.get("Content-Length") or 0)
             payload = json.loads(self.rfile.read(length) or b"{}")
         except Exception:
             return self._json({"error": "плохой JSON"}, 400)
+
+        who = self._who()
+        needs_auth = route in ("/api/save", "/api/delete", "/api/edit")
+        if needs_auth and not who:
+            return self._json({"error": "нет доступа: открой экран из Телеграма"}, 403)
 
         try:
             if route == "/api/recipe":
@@ -216,6 +285,22 @@ class Handler(BaseHTTPRequestHandler):
                 with _lock:
                     updated = edit_recipe(recipe, instruction)
                 return self._json(self._save(updated, rid=rid, wait=False))
+
+            if route == "/api/save":                 # правка прямо из мини-аппа
+                rid = (payload.get("id") or "").strip()
+                rec = payload.get("recipe") or {}
+                existing = self._recipe_by_id(rid) if rid else None
+                if not existing:
+                    return self._json({"error": "рецепт не найден"}, 404)
+                if not isinstance(rec.get("ingredients"), list) or not isinstance(rec.get("steps"), list):
+                    return self._json({"error": "в рецепте нужны ингредиенты и шаги"}, 400)
+
+                merged = {**existing, **rec}
+                for i, s in enumerate(merged["steps"], 1):
+                    s["n"] = i
+                merged["edited"] = True
+                merged["edited_by"] = who.get("id") if who else None
+                return self._json(self._save(merged, rid=rid, wait=False))
 
             if route == "/api/delete":
                 rid = (payload.get("id") or "").strip()

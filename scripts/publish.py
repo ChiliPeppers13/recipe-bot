@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -68,6 +69,12 @@ def build() -> int:
     items.sort(key=lambda x: x["added"], reverse=True)
     (RECIPES / "index.json").write_text(
         json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8"
+    )
+
+    # адрес API для мини-аппа (туннель меняется при каждом запуске)
+    api_base = os.getenv("API_BASE", "").rstrip("/")
+    (DOCS / "api.json").write_text(
+        json.dumps({"api": api_base}, ensure_ascii=False), encoding="utf-8"
     )
 
     return len(files)
