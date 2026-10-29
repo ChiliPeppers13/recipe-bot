@@ -2,587 +2,860 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
-<title>Рецепт</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<title>Кулинарная книга</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
-    --bg:#0f0d0b; --bg2:#17130f; --card:#1e1915; --line:rgba(255,255,255,.08);
-    --text:#f6efe7; --muted:#a2938a; --accent:#ff8a3d; --accent2:#ffb347;
-    --ok:#54c98a; --radius:20px;
+    --bg:#141110; --bg2:#1b1614; --card:#221c19; --line:rgba(255,255,255,.08);
+    --text:#f7f0e8; --muted:#a3948a; --accent:#ff8a3d; --accent2:#ffb347;
+    --ok:#54c98a; --danger:#ff7a63; --r:18px; --nav:64px;
   }
   @media (prefers-color-scheme: light){
-    :root{ --bg:#fbf7f2; --bg2:#fff; --card:#fff; --line:rgba(0,0,0,.08);
+    :root{ --bg:#fbf7f2; --bg2:#fff; --card:#fff; --line:rgba(0,0,0,.09);
            --text:#22190f; --muted:#8b7c6f; }
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);overflow-x:hidden;
     font:16px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
-  body{padding-bottom:96px}
+  body{padding-bottom:calc(var(--nav) + env(safe-area-inset-bottom) + 8px)}
+  button,input,textarea,select{font-family:inherit}
+  a{color:inherit}
 
-  /* ── hero ─────────────────────────────────────────── */
-  .hero{position:relative;height:280px;overflow:hidden}
-  .hero img{width:100%;height:100%;object-fit:cover;display:block}
+  .nav{position:fixed;left:0;right:0;bottom:0;z-index:40;display:flex;
+    background:var(--bg);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:9px 0 7px;
+    background:none;border:0;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer}
+  .nav-btn svg{width:23px;height:23px;stroke:currentColor;fill:none;stroke-width:1.7;
+    stroke-linecap:round;stroke-linejoin:round}
+  .nav-btn.on{color:var(--accent)}
+
+  .page{padding:14px 16px 0;animation:fade .18s ease}
+  @keyframes fade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:none}}
+  h1{font-size:26px;letter-spacing:-.02em;margin:0;font-weight:750}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:22px 0 10px}
+  .sub{color:var(--muted);font-size:13.5px;margin-top:3px}
+  .row{display:flex;gap:10px;align-items:center}
+  .grow{flex:1;min-width:0}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:14px;
+    padding:12px 14px;font-size:14.5px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#20100a}
+  .btn.ghost{background:transparent}
+  .btn.danger{color:var(--danger);border-color:rgba(255,122,99,.35)}
+  .input{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font-size:15px;outline:none}
+  .input:focus{border-color:rgba(255,138,61,.55)}
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0;scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{flex:0 0 auto;padding:8px 13px;border-radius:100px;border:1px solid var(--line);
+    background:var(--card);color:var(--muted);font-size:13.5px;font-weight:600;cursor:pointer}
+  .chip.on{background:rgba(255,138,61,.16);border-color:rgba(255,138,61,.45);color:var(--accent2)}
+  .empty{color:var(--muted);text-align:center;padding:40px 10px;font-size:14.5px;line-height:1.6}
+  .sk{height:74px;border-radius:var(--r);background:var(--card);margin-bottom:10px;
+    animation:pulse 1.3s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
+
+  .list{display:flex;flex-direction:column;gap:10px}
+  .rc{display:flex;gap:12px;align-items:center;padding:10px;background:var(--card);
+    border:1px solid var(--line);border-radius:var(--r);text-decoration:none;color:var(--text)}
+  .rc:active{transform:scale(.99)}
+  .thumb{width:62px;height:62px;flex:0 0 62px;border-radius:14px;overflow:hidden;
+    background:rgba(255,138,61,.12);display:grid;place-items:center;font-size:26px}
+  .thumb img{width:100%;height:100%;object-fit:cover}
+  .rc-title{font-size:15.5px;font-weight:650;line-height:1.25;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .rc-meta{font-size:12.5px;color:var(--muted);margin-top:4px;display:flex;gap:7px;flex-wrap:wrap}
+  .fav{background:none;border:0;font-size:19px;cursor:pointer;padding:6px;line-height:1}
+
+  .hero{position:relative;height:250px;margin:-14px -16px 0;overflow:hidden}
+  .hero img{width:100%;height:100%;object-fit:cover}
   .hero::after{content:"";position:absolute;inset:0;
-    background:linear-gradient(180deg,rgba(15,13,11,.25) 0%,rgba(15,13,11,.55) 45%,var(--bg) 100%)}
-  .hero-in{position:absolute;left:18px;right:18px;bottom:14px;z-index:2}
-  .badge{display:inline-flex;align-items:center;gap:6px;background:rgba(255,138,61,.16);
+    background:linear-gradient(180deg,rgba(20,17,16,.3) 0%,rgba(20,17,16,.55) 45%,var(--bg) 100%)}
+  .hero-in{position:absolute;left:16px;right:16px;bottom:12px;z-index:2}
+  .back{position:absolute;top:calc(8px + env(safe-area-inset-top));left:14px;z-index:5;
+    display:inline-flex;gap:6px;align-items:center;padding:7px 12px;border-radius:100px;
+    background:rgba(20,16,13,.6);color:#fff;text-decoration:none;
+    font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.15)}
+  .badge{display:inline-flex;gap:6px;align-items:center;background:rgba(255,138,61,.16);
     color:var(--accent2);border:1px solid rgba(255,138,61,.35);border-radius:100px;
-    padding:5px 11px;font-size:12px;font-weight:600;letter-spacing:.02em;margin-bottom:10px}
-  h1{margin:0;font-size:27px;line-height:1.15;letter-spacing:-.02em;font-weight:750}
-  .sub{margin:6px 0 0;color:var(--muted);font-size:14px}
-
-  /* ── meta chips ───────────────────────────────────── */
-  .meta{display:flex;gap:8px;padding:14px 18px 4px;overflow-x:auto;scrollbar-width:none}
+    padding:5px 11px;font-size:12px;font-weight:650;margin-bottom:8px}
+  .meta{display:flex;gap:8px;overflow-x:auto;padding:14px 0 0;scrollbar-width:none}
   .meta::-webkit-scrollbar{display:none}
-  .chip{flex:0 0 auto;display:flex;align-items:center;gap:7px;background:var(--card);
-    border:1px solid var(--line);border-radius:14px;padding:9px 13px;font-size:13.5px;font-weight:550}
-  .chip b{font-weight:700}
-  .chip span{color:var(--muted);font-weight:500}
-
-  /* ── sections ─────────────────────────────────────── */
-  section{padding:18px 18px 0}
-  .sec-head{display:flex;align-items:baseline;justify-content:space-between;margin:0 0 12px}
-  h2{margin:0;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
-     color:var(--muted)}
-  .count{font-size:13px;color:var(--accent);font-weight:650}
-
-  /* ── ingredients ──────────────────────────────────── */
-  .ing{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
-  .ing-row{display:flex;align-items:center;gap:12px;padding:13px 15px;
-    border-bottom:1px solid var(--line);cursor:pointer;transition:background .15s}
+  .mg{flex:0 0 auto;background:var(--card);border:1px solid var(--line);border-radius:13px;
+    padding:9px 12px;font-size:13px;font-weight:600;display:flex;gap:7px;align-items:center}
+  .mg span{color:var(--muted);font-weight:500}
+  .ing{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+  .ing-row{display:flex;gap:12px;align-items:center;padding:12px 14px;
+    border-bottom:1px solid var(--line);cursor:pointer}
   .ing-row:last-child{border-bottom:0}
-  .ing-row:active{background:rgba(255,138,61,.07)}
-  .box{width:22px;height:22px;flex:0 0 22px;border-radius:7px;border:1.8px solid rgba(160,140,125,.5);
-    display:grid;place-items:center;transition:.18s}
-  .box svg{width:13px;height:13px;opacity:0;transform:scale(.6);transition:.18s}
+  .box{width:21px;height:21px;flex:0 0 21px;border-radius:7px;border:1.8px solid rgba(160,140,125,.5);
+    display:grid;place-items:center;transition:.15s}
+  .box svg{width:12px;height:12px;opacity:0;transition:.15s}
   .ing-row.done .box{background:var(--ok);border-color:var(--ok)}
-  .ing-row.done .box svg{opacity:1;transform:scale(1)}
-  .ing-row.done .name{color:var(--muted);text-decoration:line-through}
-  .name{flex:1;font-size:15.5px}
-  .qty{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
-  .qty.vague{font-style:italic;opacity:.85}
-  .qty-col{text-align:right;flex:0 0 auto;max-width:45%}
-  .est{font-size:11.5px;color:var(--accent2);opacity:.85;margin-top:2px;
-       font-variant-numeric:tabular-nums;white-space:nowrap}
-
-  /* ── steps ────────────────────────────────────────── */
-  .step{display:flex;gap:14px;padding:15px 16px;background:var(--card);
-    border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;
-    cursor:pointer;transition:.15s;position:relative}
-  .step:active{transform:scale(.985)}
-  .step.done{opacity:.45}
-  .num{flex:0 0 30px;height:30px;border-radius:10px;background:rgba(255,138,61,.13);
-    color:var(--accent2);display:grid;place-items:center;font-size:14px;font-weight:700}
-  .step.done .num{background:var(--ok);color:#08150e}
-  .step-body{flex:1;min-width:0}
-  .step-text{font-size:15.5px;line-height:1.42}
-  .step.done .step-text{text-decoration:line-through}
-  .at{display:inline-flex;align-items:center;gap:5px;margin-top:9px;padding:4px 9px;
-    background:rgba(255,255,255,.06);border-radius:9px;font-size:12.5px;color:var(--accent2);
-    font-weight:600;font-variant-numeric:tabular-nums}
-  @media (prefers-color-scheme: light){ .at{background:rgba(255,138,61,.12)} }
-
-  /* ── notes ────────────────────────────────────────── */
-  .note{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px 16px;font-size:14.5px;line-height:1.5;margin-bottom:10px}
+  .ing-row.done .box svg{opacity:1}
+  .ing-row.done .nm{color:var(--muted);text-decoration:line-through}
+  .nm{flex:1;font-size:15.3px}
+  .qt{font-size:13.5px;color:var(--muted);text-align:right;max-width:42%}
+  .qt i{display:block;font-size:11.5px;color:var(--accent2);font-style:normal;opacity:.85}
+  .step{display:flex;gap:12px;padding:13px 14px;background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r);margin-bottom:9px;cursor:pointer}
+  .step.done{opacity:.5}
+  .num{flex:0 0 28px;height:28px;border-radius:9px;background:rgba(255,138,61,.14);
+    color:var(--accent2);display:grid;place-items:center;font-size:13.5px;font-weight:700}
+  .at{display:inline-block;margin-top:8px;padding:4px 9px;border-radius:8px;font-size:12px;
+    background:rgba(255,255,255,.06);color:var(--accent2);font-weight:600}
+  .note{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    padding:12px 14px;font-size:14.3px;margin-bottom:8px}
   .note.tip{border-left:2px solid var(--accent)}
   .note.warn{border-left:2px solid #d8a33a;color:var(--muted)}
-  .note b{color:var(--text)}
+  .actions{display:flex;gap:9px;margin-top:12px}
+  .actions .btn{flex:1}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--line);
+    border-radius:12px;overflow:hidden;background:var(--card)}
+  .stepper button{width:34px;height:32px;border:0;background:none;color:var(--text);font-size:18px;cursor:pointer}
+  .stepper span{min-width:28px;text-align:center;font-weight:700;font-size:14.5px}
 
-  /* ── footer / bar ─────────────────────────────────── */
-  .src{display:flex;align-items:center;gap:10px;margin:16px 18px 8px;padding:12px 14px;
-    background:var(--card);border:1px solid var(--line);border-radius:16px;font-size:13.5px;
-    color:var(--muted);cursor:pointer}
-  .src .play{width:26px;height:26px;border-radius:8px;background:var(--accent);
-    display:grid;place-items:center;color:#1a0d02;font-size:11px;flex:0 0 26px}
-  .bar{position:fixed;left:0;right:0;bottom:0;padding:12px 18px calc(12px + env(safe-area-inset-bottom));
-    background:linear-gradient(180deg,transparent,var(--bg) 38%);z-index:9}
-  .bar-in{display:flex;align-items:center;gap:12px;background:var(--card);
-    border:1px solid var(--line);border-radius:16px;padding:11px 14px}
-  .track{flex:1;height:6px;background:rgba(160,140,125,.22);border-radius:99px;overflow:hidden}
-  .fill{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--accent2));
-    border-radius:99px;transition:width .25s}
-  .bar-txt{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
-
-  .skel{padding:18px}
-  .sk{height:16px;border-radius:8px;background:var(--card);margin-bottom:10px;
-      animation:pulse 1.3s ease-in-out infinite}
-  @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.85}}
-
-  /* ── книга рецептов ───────────────────────────────── */
-  .lib{padding:20px 18px 0}
-  .lib-title{margin:0;font-size:28px;letter-spacing:-.02em;font-weight:750}
-  .lib-sub{color:var(--muted);font-size:13.5px;margin-top:4px}
-  .search-wrap{margin:16px 0 14px}
-  .search{width:100%;padding:12px 14px;border-radius:14px;border:1px solid var(--line);
-    background:var(--card);color:var(--text);font-size:15px;outline:none;font-family:inherit}
-  .search::placeholder{color:var(--muted)}
-  .search:focus{border-color:rgba(255,138,61,.5)}
-  .grid{display:flex;flex-direction:column;gap:10px}
-  .card{display:flex;align-items:center;gap:13px;padding:13px 14px;background:var(--card);
-    border:1px solid var(--line);border-radius:18px;text-decoration:none;color:var(--text);
-    transition:transform .12s, background .15s}
-  .card:active{transform:scale(.985);background:rgba(255,138,61,.07)}
-  .card-emoji{width:44px;height:44px;flex:0 0 44px;border-radius:13px;background:rgba(255,138,61,.12);
-    display:grid;place-items:center;font-size:22px}
-  .card-body{flex:1;min-width:0}
-  .card-title{font-size:15.5px;font-weight:600;line-height:1.28;
-    overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-  .card-meta{font-size:12.5px;color:var(--muted);margin-top:3px}
-  .card-arrow{color:var(--muted);font-size:22px;line-height:1}
-  .empty{color:var(--muted);text-align:center;padding:30px 0;font-size:14.5px}
-  .back{position:absolute;top:calc(10px + env(safe-area-inset-top));left:14px;z-index:3;
-    display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:100px;
-    background:rgba(20,16,13,.55);backdrop-filter:blur(8px);color:#fff;text-decoration:none;
-    font-size:13.5px;font-weight:600;border:1px solid rgba(255,255,255,.14)}
-  .actions{display:flex;gap:10px;margin:14px 18px 0}
-  .act{flex:1;padding:12px;border-radius:14px;border:1px solid var(--line);background:var(--card);
-    color:var(--text);font:inherit;font-size:14.5px;font-weight:600;cursor:pointer;transition:.15s}
-  .act:active{transform:scale(.98)}
-  .act.danger{color:#ff8b7a;border-color:rgba(255,110,90,.35)}
-
-  /* ── режим правки ─────────────────────────────────── */
-  .edit{padding:18px}
-  .edit h1{font-size:22px;margin:0 0 14px}
-  .edit-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
-    margin:18px 0 8px;font-weight:700}
   .edit-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
   .edit-input{flex:1;min-width:0;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
-    background:var(--card);color:var(--text);font:inherit;font-size:15px;outline:none}
-  .edit-input:focus{border-color:rgba(255,138,61,.55)}
+    background:var(--card);color:var(--text);font-size:15px;outline:none}
   .edit-input.qty{flex:0 0 34%}
-  .edit-area{flex:1;min-height:64px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
-    background:var(--card);color:var(--text);font:inherit;font-size:15px;resize:vertical;outline:none}
-  .x{flex:0 0 34px;height:34px;border-radius:10px;border:1px solid rgba(255,110,90,.3);
-    background:rgba(255,110,90,.1);color:#ff8b7a;font-size:15px;cursor:pointer}
+  .edit-area{flex:1;min-height:62px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font-size:15px;resize:vertical;outline:none}
+  .x{flex:0 0 34px;height:34px;border-radius:10px;border:1px solid rgba(255,122,99,.3);
+    background:rgba(255,122,99,.1);color:var(--danger);font-size:15px;cursor:pointer}
   .add{width:100%;padding:11px;border-radius:12px;border:1px dashed var(--line);background:transparent;
-    color:var(--muted);font:inherit;font-size:14px;cursor:pointer;margin-top:2px}
-  .edit-actions{display:flex;gap:10px;margin-top:22px}
-  .save{flex:1;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#20100a;
-    font:inherit;font-size:15.5px;font-weight:700;cursor:pointer}
-  .cancel{flex:0 0 40%;padding:14px;border-radius:14px;border:1px solid var(--line);
-    background:var(--card);color:var(--text);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
-  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--card);
-    border:1px solid var(--line);border-radius:14px;padding:12px 16px;font-size:14px;z-index:50;
-    box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:320px;text-align:center}
+    color:var(--muted);font-size:14px;cursor:pointer;margin-top:2px}
 
-  /* на большом экране — узкая «телефонная» колонка */
-  @media (min-width: 620px){
-    body{max-width:440px;margin:0 auto;background:var(--bg2);
-         box-shadow:0 0 0 1px var(--line), 0 30px 80px rgba(0,0,0,.35)}
-    html{background:#0a0908}
-    .bar{left:50%;right:auto;transform:translateX(-50%);width:440px}
+  .day{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:10px;
+    overflow:hidden}
+  .day-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;
+    border-bottom:1px solid var(--line);font-weight:700;font-size:14.5px}
+  .day-head small{color:var(--accent);font-weight:600;font-size:12px}
+  .slot{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);
+    cursor:pointer;min-height:46px}
+  .slot:last-child{border-bottom:0}
+  .slot .meal{width:72px;flex:0 0 72px;font-size:11.5px;color:var(--muted);text-transform:uppercase;
+    letter-spacing:.04em;font-weight:700}
+  .slot .what{flex:1;font-size:14.6px}
+  .slot .what.muted{color:var(--muted)}
+  .del{background:none;border:0;color:var(--muted);font-size:15px;cursor:pointer;padding:4px}
+
+  .shop-cat{font-size:12px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);
+    margin:16px 0 8px;font-weight:700}
+  .shop-item{display:flex;align-items:center;gap:11px;padding:12px 14px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;margin-bottom:7px}
+  .shop-item.done .shop-name{color:var(--muted);text-decoration:line-through}
+  .shop-name{flex:1;font-size:15px}
+  .shop-qty{color:var(--muted);font-size:13.5px}
+
+  .sheet{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);display:flex;align-items:flex-end}
+  .sheet-in{width:100%;max-height:82vh;background:var(--bg2);border-radius:22px 22px 0 0;
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom));overflow:auto}
+  .sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .pick{display:flex;justify-content:space-between;gap:10px;padding:12px 14px;background:var(--card);
+    border:1px solid var(--line);border-radius:13px;margin-bottom:7px;cursor:pointer;font-size:15px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--nav) + 18px);
+    background:var(--card);border:1px solid var(--line);border-radius:14px;padding:11px 15px;
+    font-size:14px;z-index:80;box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:320px;text-align:center}
+  @media (min-width:620px){
+    body{max-width:460px;margin:0 auto;background:var(--bg2);box-shadow:0 0 0 1px var(--line)}
+    html{background:#0b0a09}
+    .nav{left:50%;right:auto;transform:translateX(-50%);width:460px}
   }
 </style>
 </head>
 <body>
-
-<div id="app">
-  <div class="hero"><div class="skel"><div class="sk" style="width:60%"></div></div></div>
-</div>
-
+<div id="app"></div>
+<div id="nav"></div>
 <script>
-/* ────────────────────────────────────────────────────────────
-   Мини-апп. Данные берёт из ./recipe.json (его кладёт сервер/бот).
-   В Telegram дополнительно: тема, кнопка «назад», haptic.
-   ──────────────────────────────────────────────────────────── */
 const tg = window.Telegram?.WebApp;
-if (tg) { tg.ready(); tg.expand(); tg.setHeaderColor('#0f0d0b'); }
+if (tg) { tg.ready(); tg.expand(); }
 
 const $ = (s, r = document) => r.querySelector(s);
-const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const state = { recipe: null, doneIng: new Set(), doneSteps: new Set() };
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const BASE = (() => {
+  const parts = location.pathname.split('/').filter(Boolean);
+  const pages = location.hostname.endsWith('github.io');
+  return (pages && parts[0] && !['r','index.html'].includes(parts[0])) ? `/${parts[0]}` : '';
+})();
 
-/* таймкод "1:05" → ссылка на момент в оригинале */
-function jumpUrl(at) {
-  const src = state.recipe?.source; if (!src?.url || !at) return null;
-  const [m, s] = at.split(':').map(Number);
-  const t = (m || 0) * 60 + (s || 0);
-  const u = new URL(src.url);
-  if (src.url.includes('youtu')) { u.searchParams.set('t', t + 's'); return u.toString(); }
-  return src.url;
-}
-function haptic() { tg?.HapticFeedback?.selectionChanged?.(); }
-function openLink(url) { if (!url) return; tg ? tg.openLink(url) : window.open(url, '_blank'); }
+const state = {
+  recipes: [], meta: {categories: [], tags: [], stats: {}}, settings: {},
+  recipe: null, id: null, servings: null, filters: {q:'', category:'', favorite:false, max_time:0, have:''}
+};
 
-/* правка и удаление идут на мак: сайт статический, писать в репозиторий сам не может */
-let API_BASE = '';
+let API_BASE = null;
 async function apiBase() {
-  if (API_BASE) return API_BASE;
+  if (API_BASE !== null) return API_BASE;
   try {
     const r = await fetch(`${BASE}/api.json?v=${Date.now()}`);
     API_BASE = (await r.json()).api || '';
   } catch { API_BASE = ''; }
   return API_BASE;
 }
+async function api(path, opts = {}) {
+  const base = await apiBase();
+  if (!base) return null;
+  const headers = { 'Content-Type': 'application/json' };
+  if (tg?.initData) headers['X-TG-Init-Data'] = tg.initData;
+  try {
+    const r = await fetch(base + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+    const data = await r.json().catch(() => null);
+    if (!r.ok) throw new Error((data && data.error) || `HTTP ${r.status}`);
+    return data;
+  } catch (e) {
+    if (opts.method === 'POST') throw e;
+    return null;
+  }
+}
+const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
 
-function toast(text, ms = 2600) {
+function toast(text, ms = 2400) {
   document.querySelector('.toast')?.remove();
   const el = document.createElement('div');
-  el.className = 'toast';
-  el.textContent = text;
+  el.className = 'toast'; el.textContent = text;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), ms);
 }
+const vibe = () => tg?.HapticFeedback?.selectionChanged?.();
 
-async function mutate(path, payload) {
-  const init = tg?.initData || '';
-  if (!init) throw new Error('правка работает только из Телеграма');
-  const base = await apiBase();
-  if (!base) throw new Error('сервер на маке недоступен (выключен или бот не запущен)');
-  const res = await fetch(`${base}${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-TG-Init-Data': init },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
+async function staticRecipes() {
+  try { return await (await fetch(`${BASE}/recipes/index.json?v=${Date.now()}`)).json(); }
+  catch { return []; }
+}
+async function staticRecipe(id) {
+  try {
+    const r = await fetch(`${BASE}/recipes/${id}.json?v=${Date.now()}`);
+    return r.ok ? await r.json() : null;
+  } catch { return null; }
 }
 
-function enterEdit(id) {
-  const draft = {
-    title: state.recipe.title || '',
-    ingredients: (state.recipe.ingredients || []).map(x => ({ ...x })),
-    steps: (state.recipe.steps || []).map(s => ({ ...s })),
+const NAV = [
+  ['list', 'Рецепты', '<path d="M4 5h16M4 12h16M4 19h10"/>'],
+  ['plan', 'План', '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 11h18"/>'],
+  ['shop', 'Покупки', '<path d="M4 6h16l-1.5 12a2 2 0 0 1-2 1.8H7.5a2 2 0 0 1-2-1.8L4 6z"/><path d="M9 6V4h6v2"/>'],
+  ['settings', 'Настройки', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2 2 2 0 1 1-4 0 1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 15a2 2 0 1 1 0-4 1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 4.6a2 2 0 1 1 4 0 1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 11a2 2 0 1 1 0 4z"/>'],
+];
+function drawNav(active) {
+  document.getElementById('nav').innerHTML = `<div class="nav">${NAV.map(([id, label, icon]) => `
+    <button class="nav-btn ${active === id ? 'on' : ''}" data-nav="${id}">
+      <svg viewBox="0 0 24 24">${icon}</svg><span>${label}</span>
+    </button>`).join('')}</div>`;
+  $$('[data-nav]').forEach(b => b.onclick = () => { location.hash = '#/' + b.dataset.nav; });
+}
+
+function route() {
+  const h = location.hash.replace(/^#\/?/, '');
+  const m = h.match(/^r\/([\w-]+)/);
+  if (m) return openRecipe(m[1]);
+  const view = ['plan', 'shop', 'settings'].includes(h) ? h : 'list';
+  if (view === 'list') renderList();
+  if (view === 'plan') renderPlan();
+  if (view === 'shop') renderShop();
+  if (view === 'settings') renderSettings();
+}
+window.addEventListener('hashchange', route);
+
+/* ─── 1. список ─── */
+async function loadMeta() {
+  const meta = await api('/api/meta');
+  if (meta) { state.meta = meta; state.settings = meta.settings || {}; return; }
+  const all = await staticRecipes();
+  const cats = {};
+  all.forEach(r => { if (r.category) cats[r.category] = (cats[r.category] || 0) + 1; });
+  state.meta = {
+    categories: Object.entries(cats).map(([name, count]) => ({ name, count })),
+    tags: [], stats: { recipes: all.length, favorites: all.filter(r => r.favorite).length }
   };
+}
 
+async function renderList() {
+  drawNav('list');
+  document.getElementById('app').innerHTML = `<div class="page">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><h1>Моя кухня</h1><div class="sub" id="cnt">загружаю…</div></div>
+      <button class="btn ghost" id="addBtn" style="padding:10px 13px;font-size:14px">＋ Добавить</button>
+    </div>
+    <div style="margin-top:14px">
+      <input class="input" id="q" placeholder="Поиск по названию или ингредиенту" value="${esc(state.filters.q)}">
+    </div>
+    <div class="chips" id="cats" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:8px;gap:8px;flex-wrap:wrap">
+      <button class="chip ${state.filters.favorite ? 'on' : ''}" id="favBtn">★ Избранное</button>
+      <button class="chip ${state.filters.max_time ? 'on' : ''}" id="timeBtn">⏱ до 30 мин</button>
+      <button class="chip ${state.filters.have ? 'on' : ''}" id="haveBtn">🥕 Что есть дома</button>
+    </div>
+    <div id="haveBox" style="display:${state.filters.have ? 'block' : 'none'};margin-top:10px">
+      <input class="input" id="have" placeholder="помидоры, яйца, сыр" value="${esc((state.filters.have || '').trim())}">
+    </div>
+    <div id="list" class="list" style="margin-top:14px"><div class="sk"></div><div class="sk"></div></div>
+  </div>`;
+
+  document.getElementById('addBtn').onclick = showAdd;
+  const q = document.getElementById('q');
+  let t = 0;
+  q.oninput = () => { clearTimeout(t); t = setTimeout(() => { state.filters.q = q.value.trim(); loadList(); }, 220); };
+  document.getElementById('favBtn').onclick = () => { state.filters.favorite = !state.filters.favorite; renderList(); };
+  document.getElementById('timeBtn').onclick = () => { state.filters.max_time = state.filters.max_time ? 0 : 30; renderList(); };
+  document.getElementById('haveBtn').onclick = () => {
+    state.filters.have = state.filters.have ? '' : ' ';
+    renderList();
+    const box = document.getElementById('have');
+    if (state.filters.have && box) box.focus();
+  };
+  const have = document.getElementById('have');
+  if (have) have.oninput = () => { state.filters.have = have.value; clearTimeout(t); t = setTimeout(loadList, 320); };
+
+  await loadMeta();
+  document.getElementById('cnt').textContent =
+    `${state.meta.stats.recipes || 0} рецептов · ${state.meta.stats.favorites || 0} в избранном`;
+  document.getElementById('cats').innerHTML =
+    `<button class="chip ${!state.filters.category ? 'on' : ''}" data-cat="">Все</button>` +
+    (state.meta.categories || []).map(c =>
+      `<button class="chip ${state.filters.category === c.name ? 'on' : ''}" data-cat="${esc(c.name)}">${esc(c.name)} <span style="opacity:.6">${c.count}</span></button>`).join('');
+  $$('[data-cat]').forEach(b => b.onclick = () => { state.filters.category = b.dataset.cat; renderList(); });
+
+  loadList();
+}
+
+async function loadList() {
+  const f = state.filters;
+  const have = (f.have || '').trim();
+  if (have) return renderSuggest(have);
+
+  let items = await api(`/api/recipes?q=${encodeURIComponent(f.q)}&category=${encodeURIComponent(f.category)}&favorite=${f.favorite ? 1 : 0}&max_time=${f.max_time || 0}`);
+  if (!items) {
+    items = await staticRecipes();
+    if (f.q) items = items.filter(r => (r.title + ' ' + (r.ingredients || []).join(' ')).toLowerCase().includes(f.q.toLowerCase()));
+    if (f.category) items = items.filter(r => r.category === f.category);
+    if (f.favorite) items = items.filter(r => r.favorite);
+    if (f.max_time) items = items.filter(r => (r.time_min || 999) <= f.max_time);
+  }
+
+  const box = document.getElementById('list');
+  if (!box) return;
+  if (!items.length) {
+    box.innerHTML = `<div class="empty">Ничего не нашлось.<br>Измени поиск или пришли боту ссылку на новое блюдо.</div>`;
+    return;
+  }
+  box.innerHTML = items.map(cardHtml).join('');
+  $$('.fav').forEach(b => b.onclick = async e => {
+    e.preventDefault(); e.stopPropagation();
+    try {
+      const res = await post('/api/favorite', { id: b.dataset.id });
+      b.textContent = res.favorite ? '★' : '☆';
+      b.style.color = res.favorite ? 'var(--accent)' : 'var(--muted)';
+      vibe();
+    } catch (err) { toast('Избранное: ' + err.message); }
+  });
+}
+
+function cardHtml(r) {
+  const thumb = r.image || '';
+  return `<a class="rc" href="#r/${r.id}">
+    <div class="thumb">${thumb ? `<img src="${esc(thumb)}" loading="lazy" alt="">` : esc(r.emoji || '🍽')}</div>
+    <div class="grow">
+      <div class="rc-title">${esc(r.title)}</div>
+      <div class="rc-meta">
+        ${r.category ? `<span>${esc(r.category)}</span>` : ''}
+        ${r.time_min ? `<span>· ${r.time_min} мин</span>` : ''}
+        ${r.steps ? `<span>· ${r.steps} шагов</span>` : ''}
+      </div>
+    </div>
+    <button class="fav" data-id="${r.id}" style="color:${r.favorite ? 'var(--accent)' : 'var(--muted)'}">${r.favorite ? '★' : '☆'}</button>
+  </a>`;
+}
+
+async function renderSuggest(have) {
+  const box = document.getElementById('list');
+  if (box) box.innerHTML = `<div class="sk"></div><div class="sk"></div>`;
+  const items = await api(`/api/suggest?have=${encodeURIComponent(have)}`);
+  if (!box) return;
+  if (!items || !items.length) {
+    box.innerHTML = `<div class="empty">По этим продуктам в книге ничего не нашлось.<br>Попробуй другие продукты.</div>`;
+    return;
+  }
+  box.innerHTML = `<h2 style="margin-top:0">Что можно приготовить</h2>` + items.map(s => `
+    <a class="rc" href="#r/${s.id}">
+      <div class="thumb">${s.image ? `<img src="${esc(s.image)}" loading="lazy">` : esc(s.emoji || '🍽')}</div>
+      <div class="grow">
+        <div class="rc-title">${esc(s.title)}</div>
+        <div class="rc-meta"><span>есть: ${esc((s.matched || []).join(', '))}</span></div>
+        <div class="rc-meta"><span>не хватит: ${esc((s.missing || []).slice(0, 3).join(', ') || '—')}</span></div>
+      </div>
+    </a>`).join('');
+}
+
+function showAdd() {
+  const url = 'https://t.me/gabago0l_bot';
+  if (tg?.openTelegramLink) tg.openTelegramLink(url);
+  else window.open(url, '_blank');
+  toast('Пришли боту ссылку на видео или текст рецепта');
+}
+
+/* ─── 2. карточка ─── */
+async function openRecipe(id) {
+  drawNav('list');
+  document.getElementById('app').innerHTML =
+    `<div class="page"><div class="sk" style="height:220px"></div><div class="sk"></div><div class="sk"></div></div>`;
+
+  let r = await api(`/api/recipe?id=${encodeURIComponent(id)}`);
+  if (!r) r = await staticRecipe(id);
+  if (!r || r.error) {
+    document.getElementById('app').innerHTML = `<div class="page"><a class="back" href="#/">‹ Назад</a>
+      <div class="empty" style="padding-top:80px">Рецепт не найден.<br>Возможно, его удалили.</div></div>`;
+    return;
+  }
+  state.recipe = r; state.id = id;
+  state.servings = r.servings || Number(state.settings.default_servings || 2);
+  drawRecipe();
+}
+
+function scaleQty(qty, ratio) {
+  if (!qty || ratio === 1) return qty;
+  return String(qty).replace(/(\d+([.,]\d+)?)/, m => {
+    const num = parseFloat(m.replace(',', '.')) * ratio;
+    return (Math.round(num * 10) / 10).toString().replace('.', ',');
+  });
+}
+
+function drawRecipe() {
+  const r = state.recipe;
+  const base = r.servings || Number(state.settings.default_servings || 2);
+  const ratio = state.servings && base ? state.servings / base : 1;
+  const img = r.image || '';
+  const src = r.source || {};
+
+  document.getElementById('app').innerHTML = `<div class="page">
+    <a class="back" href="#/">‹ Рецепты</a>
+    <div class="hero">
+      ${img ? `<img src="${esc(img)}" alt="">` : ''}
+      <div class="hero-in">
+        <div class="badge">${esc(r.emoji || '🍳')} ${esc(r.category || 'рецепт')}</div>
+        <h1>${esc(r.title)}</h1>
+        ${r.subtitle ? `<div class="sub">${esc(r.subtitle)}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="meta">
+      ${r.time_min ? `<div class="mg">⏱ <b>${r.time_min}</b> <span>мин</span></div>`
+                   : `<div class="mg"><span>время не указано</span></div>`}
+      ${r.difficulty ? `<div class="mg"><span>сложность</span> <b>${esc(r.difficulty)}</b></div>` : ''}
+      <div class="mg">🍽 <span>порции</span>
+        <span class="stepper" style="margin-left:4px">
+          <button id="servMinus">−</button><span id="servVal">${state.servings || '—'}</span><button id="servPlus">+</button>
+        </span>
+      </div>
+    </div>
+
+    <h2>Ингредиенты <span id="ingCnt" style="color:var(--accent)"></span></h2>
+    <div class="ing" id="ings">
+      ${(r.ingredients || []).map((x, i) => `
+        <div class="ing-row" data-ing="${i}">
+          <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#08150e" stroke-width="3.4"
+            stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
+          <div class="nm">${esc(x.name)}</div>
+          <div class="qt">${esc(scaleQty(x.qty || 'по вкусу', ratio))}${
+            (x.qty === 'по вкусу' || !x.qty) && x.est ? `<i>≈ ${esc(scaleQty(x.est, ratio))}</i>` : ''}</div>
+        </div>`).join('') || `<div class="note">Ингредиенты не указаны</div>`}
+    </div>
+
+    <h2>Приготовление</h2>
+    ${(r.steps || []).map((s, i) => `
+      <div class="step" data-step="${i}">
+        <div class="num">${s.n ?? i + 1}</div>
+        <div class="grow">
+          <div>${esc(s.text)}</div>
+          ${s.at ? `<span class="at" data-at="${esc(s.at)}">▶ ${esc(s.at)}</span>` : ''}
+        </div>
+      </div>`).join('') || `<div class="note">Шаги не указаны</div>`}
+
+    ${(r.tips || []).length ? `<h2>Советы</h2>${r.tips.map(t => `<div class="note tip">${esc(t)}</div>`).join('')}` : ''}
+    ${(r.missing || []).length ? `<h2>Чего нет в источнике</h2>${r.missing.map(t => `<div class="note warn">${esc(t)}</div>`).join('')}` : ''}
+    ${src.url ? `<div class="note" id="srcBtn" style="cursor:pointer">▶ Оригинал: ${esc(src.author || src.platform || 'источник')}</div>` : ''}
+
+    <div class="actions">
+      <button class="btn" id="fav2">${r.favorite ? '★ В избранном' : '☆ В избранное'}</button>
+      <button class="btn" id="editBtn">✏️ Изменить</button>
+    </div>
+    <div class="actions">
+      <button class="btn" id="cartBtn">🛒 В покупки</button>
+      <button class="btn danger" id="delBtn">🗑 Удалить</button>
+    </div>
+    <div style="height:16px"></div>
+  </div>`;
+
+  document.getElementById('servMinus').onclick = () => { state.servings = Math.max(1, (state.servings || 1) - 1); drawRecipe(); };
+  document.getElementById('servPlus').onclick = () => { state.servings = Math.min(50, (state.servings || 1) + 1); drawRecipe(); };
+  $$('#ings .ing-row').forEach(el => el.onclick = () => { el.classList.toggle('done'); vibe(); updateIngCount(); });
+  $$('.step').forEach(el => el.onclick = e => {
+    if (e.target.closest('[data-at]')) return;
+    el.classList.toggle('done'); vibe();
+  });
+  $$('[data-at]').forEach(el => el.onclick = () => {
+    if (!src.url) return;
+    const [m, s] = el.dataset.at.split(':').map(Number);
+    const t = (m || 0) * 60 + (s || 0);
+    const full = src.url.includes('youtu')
+      ? `${src.url.split('&t=')[0]}${src.url.includes('?') ? '&' : '?'}t=${t}s` : src.url;
+    tg?.openLink ? tg.openLink(full) : window.open(full, '_blank');
+  });
+  document.getElementById('srcBtn')?.addEventListener('click', () => {
+    tg?.openLink ? tg.openLink(src.url) : window.open(src.url, '_blank');
+  });
+
+  document.getElementById('fav2').onclick = async () => {
+    try {
+      const res = await post('/api/favorite', { id: state.id });
+      state.recipe.favorite = res.favorite;
+      drawRecipe();
+      toast(res.favorite ? 'В избранном' : 'Убрано из избранного');
+    } catch (e) { toast('Не вышло: ' + e.message); }
+  };
+  document.getElementById('editBtn').onclick = () => enterEdit(state.id);
+  document.getElementById('delBtn').onclick = () => removeRecipe(state.id, state.recipe.title);
+  document.getElementById('cartBtn').onclick = async () => {
+    try {
+      const res = await post('/api/shopping', { action: 'build', recipes: [state.id] });
+      toast(`Добавлено в покупки: ${res.added}`);
+    } catch (e) { toast('Не вышло: ' + e.message); }
+  };
+  updateIngCount();
+}
+
+function updateIngCount() {
+  const total = $$('#ings .ing-row').length;
+  const done = $$('#ings .ing-row.done').length;
+  const el = document.getElementById('ingCnt');
+  if (el) el.textContent = done ? `${done}/${total}` : '';
+}
+
+/* ─── правка ─── */
+function enterEdit(id) {
+  const r = state.recipe;
+  const draft = {
+    title: r.title || '', category: r.category || '',
+    time_min: r.time_min || '', servings: r.servings || '',
+    ingredients: (r.ingredients || []).map(x => ({ ...x })),
+    steps: (r.steps || []).map(s => ({ ...s })),
+  };
   const draw = () => {
-    $('#app').innerHTML = `
-      <div class="edit">
-        <h1>Правка рецепта</h1>
-        <input class="edit-input" id="eTitle" value="${esc(draft.title)}" placeholder="Название">
+    document.getElementById('app').innerHTML = `<div class="page">
+      <h1 style="margin-bottom:14px">Правка</h1>
+      <input class="edit-input" id="eTitle" value="${esc(draft.title)}" placeholder="Название" style="width:100%">
+      <div class="row" style="margin-top:8px">
+        <input class="edit-input" id="eCat" value="${esc(draft.category)}" placeholder="категория">
+        <input class="edit-input" id="eTime" value="${esc(draft.time_min)}" placeholder="мин" style="flex:0 0 28%">
+        <input class="edit-input" id="eServ" value="${esc(draft.servings)}" placeholder="порц" style="flex:0 0 28%">
+      </div>
+      <h2>Ингредиенты</h2>
+      ${draft.ingredients.map((x, i) => `
+        <div class="edit-row">
+          <input class="edit-input" data-in="${i}" value="${esc(x.name || '')}" placeholder="что">
+          <input class="edit-input qty" data-iq="${i}" value="${esc(x.qty || '')}" placeholder="сколько">
+          <button class="x" data-di="${i}">✕</button>
+        </div>`).join('')}
+      <button class="add" id="addIng">+ ингредиент</button>
+      <h2>Шаги</h2>
+      ${draft.steps.map((s, i) => `
+        <div class="edit-row" style="align-items:flex-start">
+          <textarea class="edit-area" data-st="${i}" placeholder="шаг ${i + 1}">${esc(s.text || '')}</textarea>
+          <button class="x" data-ds="${i}">✕</button>
+        </div>`).join('')}
+      <button class="add" id="addStep">+ шаг</button>
+      <div class="actions">
+        <button class="btn" id="eCancel">Отмена</button>
+        <button class="btn primary" id="eSave">Сохранить</button>
+      </div>
+      <div style="height:16px"></div>
+    </div>`;
 
-        <div class="edit-label">Ингредиенты</div>
-        <div id="eIngs">
-          ${draft.ingredients.map((x, i) => `
-            <div class="edit-row">
-              <input class="edit-input" data-ing-name="${i}" value="${esc(x.name || '')}" placeholder="что">
-              <input class="edit-input qty" data-ing-qty="${i}" value="${esc(x.qty || '')}" placeholder="сколько">
-              <button class="x" data-del-ing="${i}">✕</button>
-            </div>`).join('')}
-        </div>
-        <button class="add" id="addIng">+ ингредиент</button>
+    document.getElementById('eTitle').oninput = e => draft.title = e.target.value;
+    document.getElementById('eCat').oninput = e => draft.category = e.target.value;
+    document.getElementById('eTime').oninput = e => draft.time_min = e.target.value;
+    document.getElementById('eServ').oninput = e => draft.servings = e.target.value;
+    $$('[data-in]').forEach(el => el.oninput = e => draft.ingredients[+e.target.dataset.in].name = e.target.value);
+    $$('[data-iq]').forEach(el => el.oninput = e => draft.ingredients[+e.target.dataset.iq].qty = e.target.value);
+    $$('[data-st]').forEach(el => el.oninput = e => draft.steps[+e.target.dataset.st].text = e.target.value);
+    $$('[data-di]').forEach(el => el.onclick = e => {
+      const i = +e.target.dataset.di;
+      if (draft.ingredients.length <= 1) return toast('Оставь хотя бы один ингредиент');
+      draft.ingredients.splice(i, 1); draw();
+    });
+    $$('[data-ds]').forEach(el => el.onclick = e => {
+      const i = +e.target.dataset.ds;
+      if (draft.steps.length <= 1) return toast('Оставь хотя бы один шаг');
+      draft.steps.splice(i, 1); draw();
+    });
+    document.getElementById('addIng').onclick = () => { draft.ingredients.push({ name: '', qty: '' }); draw(); };
+    document.getElementById('addStep').onclick = () => { draft.steps.push({ text: '', at: '' }); draw(); };
+    document.getElementById('eCancel').onclick = () => drawRecipe();
 
-        <div class="edit-label">Шаги</div>
-        <div id="eSteps">
-          ${draft.steps.map((s, i) => `
-            <div class="edit-row" style="align-items:flex-start">
-              <textarea class="edit-area" data-step="${i}" placeholder="шаг ${i + 1}">${esc(s.text || '')}</textarea>
-              <button class="x" data-del-step="${i}">✕</button>
-            </div>`).join('')}
-        </div>
-        <button class="add" id="addStep">+ шаг</button>
-
-        <div class="edit-actions">
-          <button class="cancel" id="eCancel">Отмена</button>
-          <button class="save" id="eSave">Сохранить</button>
-        </div>
-      </div>`;
-
-    $('#eTitle').addEventListener('input', e => { draft.title = e.target.value; });
-    document.querySelectorAll('[data-ing-name]').forEach(el =>
-      el.addEventListener('input', e => { draft.ingredients[+e.target.dataset.ingName].name = e.target.value; }));
-    document.querySelectorAll('[data-ing-qty]').forEach(el =>
-      el.addEventListener('input', e => { draft.ingredients[+e.target.dataset.ingQty].qty = e.target.value; }));
-    document.querySelectorAll('[data-step]').forEach(el =>
-      el.addEventListener('input', e => { draft.steps[+e.target.dataset.step].text = e.target.value; }));
-
-    document.querySelectorAll('[data-del-ing]').forEach(el =>
-      el.addEventListener('click', e => {
-        const i = +e.target.dataset.delIng;
-        if (draft.ingredients.length <= 1) { toast('Должен остаться хотя бы один ингредиент'); return; }
-        draft.ingredients.splice(i, 1); draw();
-      }));
-    document.querySelectorAll('[data-del-step]').forEach(el =>
-      el.addEventListener('click', e => {
-        const i = +e.target.dataset.delStep;
-        if (draft.steps.length <= 1) { toast('Должен остаться хотя бы один шаг'); return; }
-        draft.steps.splice(i, 1); draw();
-      }));
-
-    $('#addIng').addEventListener('click', () => { draft.ingredients.push({ name: '', qty: '' }); draw(); });
-    $('#addStep').addEventListener('click', () => { draft.steps.push({ text: '', at: '' }); draw(); });
-    $('#eCancel').addEventListener('click', () => render(state.recipe, id));
-
-    $('#eSave').addEventListener('click', async () => {
-      const btn = $('#eSave');
+    document.getElementById('eSave').onclick = async () => {
+      const btn = document.getElementById('eSave');
       btn.textContent = 'Сохраняю…';
       try {
         const clean = {
           title: draft.title.trim() || 'Без названия',
-          ingredients: draft.ingredients.filter(x => (x.name || '').trim()),
+          category: draft.category.trim(),
+          time_min: draft.time_min ? Number(draft.time_min) : null,
+          servings: draft.servings ? Number(draft.servings) : null,
+          ingredients: draft.ingredients.filter(x => (x.name || '').trim())
+            .map(x => ({ ...x, name: x.name.trim(), qty: (x.qty || '').trim() })),
           steps: draft.steps.filter(s => (s.text || '').trim())
             .map((s, i) => ({ n: i + 1, text: s.text.trim(), at: s.at || '' })),
         };
-        if (!clean.ingredients.length || !clean.steps.length) throw new Error('нужен хотя бы один ингредиент и один шаг');
-        await mutate('/api/save', { id, recipe: clean });
-        toast('Сохранено. Через полминуты обновится и на сайте.');
-        const fresh = await fetchJson(`${BASE}/recipes/${id}.json`, 2);
-        render(fresh, id);
-      } catch (err) {
+        if (!clean.ingredients.length || !clean.steps.length) throw new Error('нужен хотя бы один ингредиент и шаг');
+        await post('/api/save', { id, recipe: clean });
+        state.recipe = { ...state.recipe, ...clean };
+        toast('Сохранено');
+        drawRecipe();
+      } catch (e) {
         btn.textContent = 'Сохранить';
-        toast('Не сохранилось: ' + err.message, 4000);
+        toast('Не сохранилось: ' + e.message, 4000);
       }
-    });
+    };
   };
-
   draw();
 }
 
 async function removeRecipe(id, title) {
   const ask = `Удалить «${title}»?`;
-  const ok = tg?.showConfirm
-    ? await new Promise(res => tg.showConfirm(ask, res))
-    : window.confirm(ask);
+  const ok = tg?.showConfirm ? await new Promise(res => tg.showConfirm(ask, res)) : window.confirm(ask);
   if (!ok) return;
   try {
-    await mutate('/api/delete', { id });
+    await post('/api/delete', { id });
     toast('Удалено');
     location.hash = '#/';
-    route();
-  } catch (err) {
-    toast('Не удалилось: ' + err.message, 4000);
-  }
+  } catch (e) { toast('Не удалилось: ' + e.message, 4000); }
 }
 
-function render(r, id) {
-  state.recipe = r;
-  const vague = q => !q || /по вкусу|щепотк|немного|~|\?/i.test(q);
-  const thumb = r.source?.thumbnail || '';
-  const mins = r.time_min ? `${r.time_min} мин` : '—';
+/* ─── 3. план ─── */
+const MEALS = [['breakfast', 'Завтрак'], ['lunch', 'Обед'], ['dinner', 'Ужин']];
+const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
-  $('#app').innerHTML = `
-    <div class="hero">
-      <a class="back" href="#/">‹ Рецепты</a>
-      ${thumb ? `<img src="${esc(thumb)}" alt="">` : ''}
-      <div class="hero-in">
-        <div class="badge">${esc(r.emoji || '🍳')} из видео</div>
-        <h1>${esc(r.title)}</h1>
-        ${r.subtitle ? `<p class="sub">${esc(r.subtitle)}</p>` : ''}
+function isoWeekStart(offset = 0) {
+  const d = new Date();
+  const day = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - day + offset * 7);
+  return d;
+}
+
+async function renderPlan(weekOffset = 0) {
+  drawNav('plan');
+  const start = isoWeekStart(weekOffset);
+  const startStr = start.toISOString().slice(0, 10);
+  const endStr = new Date(start.getTime() + 6 * 86400000).toISOString().slice(0, 10);
+  const plan = await api(`/api/plan?start=${startStr}&end=${endStr}`) || { items: [] };
+  const byKey = {};
+  (plan.items || []).forEach(i => byKey[`${i.date}|${i.meal}`] = i);
+
+  const days = [...Array(7)].map((_, i) => {
+    const d = new Date(start.getTime() + i * 86400000);
+    return { iso: d.toISOString().slice(0, 10), label: `${WD[i]}, ${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}` };
+  });
+  const today = new Date().toISOString().slice(0, 10);
+
+  document.getElementById('app').innerHTML = `<div class="page">
+    <div class="row" style="justify-content:space-between">
+      <div><h1>План</h1><div class="sub">${startStr} — ${endStr}</div></div>
+      <div class="row" style="gap:6px">
+        <button class="btn ghost" id="wPrev" style="padding:9px 12px">‹</button>
+        <button class="btn ghost" id="wNext" style="padding:9px 12px">›</button>
       </div>
     </div>
-
-    <div class="meta">
-      <div class="chip">⏱ <b>${esc(mins)}</b></div>
-      <div class="chip">🍽 <b>${esc(r.servings ?? '—')}</b> <span>порц.</span></div>
-      <div class="chip">📊 <span>сложность</span> <b>${esc(r.difficulty || '—')}</b></div>
-      <div class="chip">🧾 <b>${r.ingredients.length}</b> <span>ингр.</span></div>
-    </div>
-
-    <section>
-      <div class="sec-head"><h2>Ингредиенты</h2><div class="count" id="ingCount"></div></div>
-      <div class="ing" id="ingList">
-        ${r.ingredients.map((x, i) => `
-          <div class="ing-row" data-ing="${i}">
-            <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke="#08150e" stroke-width="3.4"
-              stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg></div>
-            <div class="name">${esc(x.name)}</div>
-            <div class="qty-col">
-              <div class="qty ${vague(x.qty) ? 'vague' : ''}">${esc(x.qty || 'по вкусу')}</div>
-              ${(vague(x.qty) && x.est) ? `<div class="est">${esc(x.est)}</div>` : ''}
-            </div>
-          </div>`).join('')}
-      </div>
-    </section>
-
-    <section>
-      <div class="sec-head"><h2>Как готовить</h2><div class="count">${r.steps.length} шагов</div></div>
-      ${r.steps.map((s, i) => `
-        <div class="step" data-step="${i}">
-          <div class="num">${s.n ?? i + 1}</div>
-          <div class="step-body">
-            <div class="step-text">${esc(s.text)}</div>
-            ${s.at ? `<div class="at" data-jump="${esc(s.at)}">▶ ${esc(s.at)} в видео</div>` : ''}
-          </div>
+    <div style="margin-top:14px">
+      ${days.map(d => `
+        <div class="day">
+          <div class="day-head">${d.label} ${d.iso === today ? '<small>сегодня</small>' : ''}</div>
+          ${MEALS.map(([meal, label]) => {
+            const it = byKey[`${d.iso}|${meal}`];
+            return `<div class="slot" data-date="${d.iso}" data-meal="${meal}">
+              <div class="meal">${label}</div>
+              <div class="what ${it ? '' : 'muted'}">${it ? esc(it.emoji || '🍽') + ' ' + esc(it.title || '') : 'добавить блюдо'}</div>
+              ${it ? `<button class="del" data-clear="${d.iso}|${meal}">✕</button>` : ''}
+            </div>`;
+          }).join('')}
         </div>`).join('')}
-    </section>
+    </div>
+    <button class="btn primary" id="planShop" style="width:100%;margin:6px 0 12px">🛒 Покупки на эту неделю</button>
+  </div>`;
 
-    ${(r.tips?.length) ? `<section>
-      <div class="sec-head"><h2>Советы автора</h2></div>
-      ${r.tips.map(t => `<div class="note tip">${esc(t)}</div>`).join('')}
-    </section>` : ''}
-
-    ${(r.missing?.length) ? `<section>
-      <div class="sec-head"><h2>Чего нет в видео</h2></div>
-      ${r.missing.map(t => `<div class="note warn">${esc(t)}</div>`).join('')}
-    </section>` : ''}
-
-    ${r.source?.url ? `<div class="src" id="srcBtn">
-      <div class="play">▶</div>
-      <div>Оригинал: ${esc(r.source.author || 'видео')}</div>
-    </div>` : ''}
-
-    ${id ? `<div class="actions">
-      <button class="act" id="editBtn">✏️ Изменить</button>
-      <button class="act danger" id="delBtn">🗑 Удалить</button>
-    </div>` : ''}
-
-    <div class="bar"><div class="bar-in">
-      <div class="track"><div class="fill" id="fill"></div></div>
-      <div class="bar-txt" id="barTxt">0/${r.ingredients.length}</div>
-    </div></div>`;
-
-  /* ингредиенты: тап — вычеркнуть */
-  $('#ingList').addEventListener('click', e => {
-    const row = e.target.closest('.ing-row'); if (!row) return;
-    const i = +row.dataset.ing;
-    state.doneIng.has(i) ? state.doneIng.delete(i) : state.doneIng.add(i);
-    row.classList.toggle('done'); haptic(); updateBar();
+  document.getElementById('wPrev').onclick = () => renderPlan(weekOffset - 1);
+  document.getElementById('wNext').onclick = () => renderPlan(weekOffset + 1);
+  $$('.slot').forEach(el => el.onclick = e => {
+    if (e.target.dataset.clear) return;
+    pickRecipe(el.dataset.date, el.dataset.meal);
   });
-
-  /* шаги: тап по таймкоду — открыть видео на моменте, тап по шагу — готово */
-  document.querySelectorAll('.step').forEach(el => {
-    el.addEventListener('click', e => {
-      const at = e.target.closest('[data-jump]');
-      if (at) { openLink(jumpUrl(at.dataset.jump)); return; }
-      const i = +el.dataset.step;
-      state.doneSteps.has(i) ? state.doneSteps.delete(i) : state.doneSteps.add(i);
-      el.classList.toggle('done'); haptic();
-    });
+  $$('[data-clear]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const [date, meal] = b.dataset.clear.split('|');
+    try { await post('/api/plan', { action: 'clear', date, meal }); renderPlan(weekOffset); }
+    catch (err) { toast('Не вышло: ' + err.message); }
   });
-
-  $('#srcBtn')?.addEventListener('click', () => openLink(r.source.url));
-  $('#editBtn')?.addEventListener('click', () => enterEdit(id));
-  $('#delBtn')?.addEventListener('click', () => removeRecipe(id, r.title));
-  updateBar();
-}
-
-function updateBar() {
-  const total = state.recipe.ingredients.length;
-  const done = state.doneIng.size;
-  $('#fill').style.width = total ? (done / total * 100) + '%' : '0%';
-  $('#barTxt').textContent = `${done}/${total}`;
-  $('#ingCount').textContent = done ? `готово ${done}` : `всего ${total}`;
-}
-
-/* данные: и локальный сервер, и статичный хостинг (GitHub Pages) отдают /recipes/<id>.json */
-/* ── маршрутизация: #/ — книга рецептов, #r/<id> — один рецепт ── */
-const BASE = (() => {
-  const parts = location.pathname.split('/').filter(Boolean);
-  const onPages = location.hostname.endsWith('github.io');
-  return (onPages && parts[0] && parts[0] !== 'r') ? `/${parts[0]}` : '';
-})();
-
-function recipeId() {
-  const m = location.hash.match(/r\/([\w-]+)/) || location.pathname.match(/\/r\/([\w-]+)/);
-  return m ? m[1] : null;
-}
-
-/* GitHub Pages собирается с задержкой — до 8 попыток вместо голого 404 */
-async function fetchJson(url, tries = 8) {
-  let lastErr = new Error('HTTP 404');
-  for (let i = 0; i < tries; i++) {
+  document.getElementById('planShop').onclick = async () => {
+    const ids = [...new Set(((plan.items) || []).map(i => i.recipe_id))];
+    if (!ids.length) return toast('В плане пока пусто');
     try {
-      // ?v= обходит кэш CDN: после правок и удалений файл может отдаваться старым
-      const res = await fetch(`${url}?v=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) return await res.json();
-      lastErr = new Error('HTTP ' + res.status);
-      if (res.status !== 404) throw lastErr;
-    } catch (e) {
-      lastErr = e;
-      if (String(e.message) !== 'HTTP 404' && i === tries - 1) throw e;
-    }
-    if (i < tries - 1) await new Promise(r => setTimeout(r, 2500));
-  }
-  throw lastErr;
+      const res = await post('/api/shopping', { action: 'build', recipes: ids, replace: true });
+      toast(`В покупках ${res.items.length} позиций`);
+      location.hash = '#/shop';
+    } catch (e) { toast('Не вышло: ' + e.message); }
+  };
 }
 
-function route() {
-  const id = recipeId();
-  if (id) {
-    renderPending(0);
-    fetchJson(`${BASE}/recipes/${id}.json`).then(x => render(x, id)).catch(renderError);
-  } else {
-    renderLoading();
-    fetchJson(`${BASE}/recipes/index.json`).then(renderLibrary).catch(renderLibraryError);
-  }
-}
-window.addEventListener('hashchange', route);
-
-function plural(n) {
-  const a = n % 10, b = n % 100;
-  if (a === 1 && b !== 11) return 'рецепт';
-  if (a >= 2 && a <= 4 && (b < 12 || b > 14)) return 'рецепта';
-  return 'рецептов';
-}
-
-function renderLoading() {
-  $('#app').innerHTML = `<div class="lib">
-    <h1 class="lib-title">Книга рецептов</h1>
-    <div class="lib-sub">загружаю…</div>
-    <div class="grid" style="margin-top:16px">
-      ${'<div class="sk" style="height:70px;border-radius:18px"></div>'.repeat(4)}
-    </div></div>`;
-}
-
-function renderLibrary(items) {
-  if (!items.length) {
-    $('#app').innerHTML = `<div class="lib"><h1 class="lib-title">Книга рецептов</h1>
-      <div class="empty">Пока пусто. Пришли боту ссылку на видео с рецептом.</div></div>`;
-    return;
-  }
-
-  const card = it => `
-    <a class="card" href="#r/${it.id}">
-      <div class="card-emoji">${esc(it.emoji || '🍽')}</div>
-      <div class="card-body">
-        <div class="card-title">${esc(it.title)}</div>
-        <div class="card-meta">${it.time_min ? esc(it.time_min) + ' мин · ' : ''}${it.steps} ${it.steps === 1 ? 'шаг' : (it.steps < 5 ? 'шага' : 'шагов')}</div>
-      </div>
-      <div class="card-arrow">›</div>
-    </a>`;
-
-  $('#app').innerHTML = `
-    <div class="lib">
-      <h1 class="lib-title">Книга рецептов</h1>
-      <div class="lib-sub">${items.length} ${plural(items.length)}</div>
-      <div class="search-wrap">
-        <input id="q" class="search" type="search" placeholder="Поиск по названию" autocomplete="off">
-      </div>
-      <div id="cards" class="grid">${items.map(card).join('')}</div>
-      <div id="empty" class="empty" hidden>Ничего не нашлось</div>
-    </div>`;
-
-  $('#q').addEventListener('input', e => {
-    const v = e.target.value.trim().toLowerCase();
-    const found = v ? items.filter(i => (i.title || '').toLowerCase().includes(v)) : items;
-    $('#cards').innerHTML = found.map(card).join('');
-    $('#empty').hidden = found.length > 0;
+async function pickRecipe(date, meal) {
+  const items = (await api('/api/recipes')) || (await staticRecipes());
+  const sheet = document.createElement('div');
+  sheet.className = 'sheet';
+  sheet.innerHTML = `<div class="sheet-in">
+    <div class="sheet-head"><b>Что поставить?</b>
+      <button class="btn ghost" id="close" style="padding:8px 12px">Закрыть</button></div>
+    <input class="input" id="pq" placeholder="поиск" style="margin-bottom:10px">
+    <div id="plist">${(items || []).map(r => `<div class="pick" data-rid="${r.id}">
+      <span>${esc(r.emoji || '🍽')} ${esc(r.title)}</span>
+      <span style="color:var(--muted);font-size:13px">${r.time_min ? r.time_min + ' мин' : ''}</span>
+    </div>`).join('')}</div>
+  </div>`;
+  document.body.appendChild(sheet);
+  const close = () => sheet.remove();
+  sheet.onclick = e => { if (e.target === sheet) close(); };
+  sheet.querySelector('#close').onclick = close;
+  sheet.querySelector('#pq').oninput = e => {
+    const v = e.target.value.toLowerCase();
+    sheet.querySelectorAll('.pick').forEach(p => p.style.display = p.textContent.toLowerCase().includes(v) ? '' : 'none');
+  };
+  sheet.querySelectorAll('.pick').forEach(p => p.onclick = async () => {
+    try {
+      await post('/api/plan', { action: 'set', date, meal, recipe_id: p.dataset.rid });
+      close(); renderPlan();
+    } catch (err) { toast('Не вышло: ' + err.message); }
   });
 }
 
-function renderLibraryError(err) {
-  $('#app').innerHTML = `<div class="lib">
-    <h1 class="lib-title">Книга рецептов</h1>
-    <div class="empty">Не загрузилась: ${esc(err.message)}<br><br>Обнови страницу через полминуты.</div></div>`;
+/* ─── 4. покупки ─── */
+async function renderShop() {
+  drawNav('shop');
+  const items = (await api('/api/shopping')) || [];
+  const groups = {};
+  items.forEach(i => (groups[i.cat || 'Прочее'] ||= []).push(i));
+  const total = items.length, done = items.filter(i => i.done).length;
+
+  document.getElementById('app').innerHTML = `<div class="page">
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><h1>Покупки</h1><div class="sub">${total ? `${done} из ${total} куплено` : 'список пуст'}</div></div>
+      ${done ? `<button class="btn ghost" id="clearDone" style="padding:9px 12px;font-size:13.5px">Убрать купленное</button>` : ''}
+    </div>
+    <div class="row" style="margin-top:14px">
+      <input class="input" id="addName" placeholder="добавить продукт">
+      <button class="btn primary" id="addBtn" style="padding:12px 16px">＋</button>
+    </div>
+    ${total ? Object.entries(groups).map(([cat, list]) => `
+      <div class="shop-cat">${esc(cat)}</div>
+      ${list.map(i => `<div class="shop-item ${i.done ? 'done' : ''}">
+        <div class="box" data-toggle="${i.id}" style="${i.done ? 'background:var(--ok);border-color:var(--ok)' : ''}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#08150e" stroke-width="3.4" stroke-linecap="round"
+            stroke-linejoin="round" style="opacity:${i.done ? 1 : 0}"><path d="M20 6L9 17l-5-5"/></svg>
+        </div>
+        <div class="shop-name" data-toggle="${i.id}">${esc(i.name)}</div>
+        <div class="shop-qty">${i.qty != null ? `${i.qty} ${esc(i.unit || '')}` : ''}</div>
+        <button class="del" data-del="${i.id}">✕</button>
+      </div>`).join('')}`).join('')
+      : `<div class="empty">Список пуст.<br>Собери из рецепта (🛒 в карточке) или из плана недели.</div>`}
+    <div style="height:16px"></div>
+  </div>`;
+
+  document.getElementById('addBtn').onclick = async () => {
+    const name = document.getElementById('addName').value.trim();
+    if (!name) return;
+    try { await post('/api/shopping', { action: 'add', name }); renderShop(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  };
+  document.getElementById('addName').onkeydown = e => { if (e.key === 'Enter') document.getElementById('addBtn').click(); };
+  $$('[data-toggle]').forEach(el => el.onclick = async () => {
+    try { await post('/api/shopping', { action: 'toggle', id: +el.dataset.toggle }); renderShop(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  });
+  $$('[data-del]').forEach(el => el.onclick = async () => {
+    try { await post('/api/shopping', { action: 'delete', id: +el.dataset.del }); renderShop(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  });
+  document.getElementById('clearDone')?.addEventListener('click', async () => {
+    try { await post('/api/shopping', { action: 'clear', done_only: true }); renderShop(); }
+    catch (e) { toast('Не вышло: ' + e.message); }
+  });
+}
+
+/* ─── 5. настройки ─── */
+async function renderSettings() {
+  drawNav('settings');
+  const s = (await api('/api/settings')) || state.settings || {};
+  const stats = (state.meta && state.meta.stats) || {};
+  let ai = s.ai_suggestions === '1';
+  const parse = v => { try { return JSON.parse(v || '[]').join(', '); } catch { return ''; } };
+
+  document.getElementById('app').innerHTML = `<div class="page">
+    <h1>Настройки</h1>
+    <div class="sub">Сохраняются в базе на маке</div>
+
+    <h2>Готовка</h2>
+    <div class="row" style="justify-content:space-between;padding:8px 0">
+      <div class="grow">Порций по умолчанию</div>
+      <input class="input" id="sServ" value="${esc(s.default_servings || '2')}" style="width:80px;text-align:center">
+    </div>
+    <div class="row" style="justify-content:space-between;padding:8px 0">
+      <div class="grow">Максимум времени, мин</div>
+      <input class="input" id="sTime" value="${esc(s.max_time || '')}" placeholder="—" style="width:80px;text-align:center">
+    </div>
+
+    <h2>Ограничения</h2>
+    <div class="sub" style="margin-bottom:8px">Исключаемые ингредиенты</div>
+    <input class="input" id="sExcl" value="${esc(parse(s.exclude))}" placeholder="кинза, грибы">
+    <div class="sub" style="margin:14px 0 8px">Аллергены</div>
+    <input class="input" id="sAllerg" value="${esc(parse(s.allergens))}" placeholder="орехи, лактоза">
+
+    <h2>ИИ</h2>
+    <div class="row" style="padding:6px 0;align-items:flex-start">
+      <div class="grow">Предлагать новые рецепты через ИИ
+        <div class="sub">Выключено — работает только твоя книга, запросы к модели не тратятся.</div>
+      </div>
+      <button class="btn ${ai ? 'primary' : ''}" id="aiBtn">${ai ? 'Вкл' : 'Выкл'}</button>
+    </div>
+
+    <button class="btn primary" id="saveSet" style="width:100%;margin-top:16px">Сохранить</button>
+
+    <h2>Данные</h2>
+    <div class="note">Рецептов: <b>${stats.recipes ?? '—'}</b> · в избранном: <b>${stats.favorites ?? '—'}</b>
+      ${stats.size_kb ? `<br><span class="sub">База: ${stats.size_kb} КБ</span>` : ''}</div>
+    <div class="note warn">Резервная копия: <code>data/recipes.db</code> + скрипт <code>scripts/backup.py</code></div>
+    <div style="height:20px"></div>
+  </div>`;
+
+  document.getElementById('aiBtn').onclick = () => {
+    ai = !ai;
+    const b = document.getElementById('aiBtn');
+    b.textContent = ai ? 'Вкл' : 'Выкл';
+    b.classList.toggle('primary', ai);
+  };
+
+  document.getElementById('saveSet').onclick = async () => {
+    const patch = {
+      default_servings: document.getElementById('sServ').value.trim() || '2',
+      max_time: document.getElementById('sTime').value.trim(),
+      exclude: JSON.stringify(document.getElementById('sExcl').value.split(',').map(x => x.trim()).filter(Boolean)),
+      allergens: JSON.stringify(document.getElementById('sAllerg').value.split(',').map(x => x.trim()).filter(Boolean)),
+      ai_suggestions: ai ? '1' : '0',
+    };
+    try {
+      state.settings = (await post('/api/settings', { patch })) || { ...s, ...patch };
+      toast('Настройки сохранены');
+    } catch (e) { toast('Не сохранилось: ' + e.message, 4000); }
+  };
 }
 
 route();
-
-function renderPending(attempt) {
-  if ($('#app').dataset.state === 'pending') {
-    $('#pendingTxt').textContent = `ещё собирается… ${attempt + 1}/8`;
-    return;
-  }
-  $('#app').dataset.state = 'pending';
-  $('#app').innerHTML = `<div class="skel" style="padding-top:64px">
-    <div class="badge">Публикация</div>
-    <h1 style="margin-top:8px">Рецепт ещё выкладывается</h1>
-    <p class="sub" id="pendingTxt">ещё собирается… ${attempt + 1}/8</p>
-    <p class="sub" style="margin-top:14px">GitHub Pages обновляется ~30 секунд. Обнови страницу, если долго.</p>
-  </div>`;
-}
-
-function renderError(err) {
-  $('#app').innerHTML = `<div class="skel" style="padding-top:60px">
-    <div class="badge">Ошибка</div>
-    <h1 style="margin-top:8px">Не удалось загрузить рецепт</h1>
-    <p class="sub">${esc(err.message)}</p>
-    <p class="sub" style="margin-top:12px">Если только что добавил — подожди полминуты и обнови.</p>
-  </div>`;
-}
 </script>
 </body>
 </html>
