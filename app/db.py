@@ -73,6 +73,7 @@ JSON_FIELDS = ("tags", "ingredients", "steps", "tips", "missing", "source")
 
 DEFAULT_SETTINGS = {
     "lang": "ru",
+    "theme": "dark",
     "default_servings": "2",
     "max_time": "",              # пусто = без ограничения
     "exclude": "[]",             # исключаемые ингредиенты
