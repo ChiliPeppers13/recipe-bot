@@ -6,7 +6,7 @@
   "category": "Завтрак",
   "time_min": 10,
   "steps": 10,
-  "favorite": true,
+  "favorite": false,
   "image": "",
   "platform": "youtube",
   "added": 1793257825
