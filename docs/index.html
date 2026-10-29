@@ -142,6 +142,31 @@
   .act:active{transform:scale(.98)}
   .act.danger{color:#ff8b7a;border-color:rgba(255,110,90,.35)}
 
+  /* ── режим правки ─────────────────────────────────── */
+  .edit{padding:18px}
+  .edit h1{font-size:22px;margin:0 0 14px}
+  .edit-label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    margin:18px 0 8px;font-weight:700}
+  .edit-row{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+  .edit-input{flex:1;min-width:0;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font:inherit;font-size:15px;outline:none}
+  .edit-input:focus{border-color:rgba(255,138,61,.55)}
+  .edit-input.qty{flex:0 0 34%}
+  .edit-area{flex:1;min-height:64px;padding:11px 12px;border-radius:12px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font:inherit;font-size:15px;resize:vertical;outline:none}
+  .x{flex:0 0 34px;height:34px;border-radius:10px;border:1px solid rgba(255,110,90,.3);
+    background:rgba(255,110,90,.1);color:#ff8b7a;font-size:15px;cursor:pointer}
+  .add{width:100%;padding:11px;border-radius:12px;border:1px dashed var(--line);background:transparent;
+    color:var(--muted);font:inherit;font-size:14px;cursor:pointer;margin-top:2px}
+  .edit-actions{display:flex;gap:10px;margin-top:22px}
+  .save{flex:1;padding:14px;border-radius:14px;border:0;background:var(--accent);color:#20100a;
+    font:inherit;font-size:15.5px;font-weight:700;cursor:pointer}
+  .cancel{flex:0 0 40%;padding:14px;border-radius:14px;border:1px solid var(--line);
+    background:var(--card);color:var(--text);font:inherit;font-size:15px;font-weight:600;cursor:pointer}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:100px;background:var(--card);
+    border:1px solid var(--line);border-radius:14px;padding:12px 16px;font-size:14px;z-index:50;
+    box-shadow:0 12px 40px rgba(0,0,0,.45);max-width:320px;text-align:center}
+
   /* на большом экране — узкая «телефонная» колонка */
   @media (min-width: 620px){
     body{max-width:440px;margin:0 auto;background:var(--bg2);
@@ -181,12 +206,145 @@ function jumpUrl(at) {
 function haptic() { tg?.HapticFeedback?.selectionChanged?.(); }
 function openLink(url) { if (!url) return; tg ? tg.openLink(url) : window.open(url, '_blank'); }
 
-/* правка и удаление живут в боте: статичный сайт не может писать в репозиторий */
-const BOT_USER = 'gabago0l_bot';
-function botDeepLink(payload) {
-  const url = `https://t.me/${BOT_USER}?start=${payload}`;
-  if (tg?.openTelegramLink) tg.openTelegramLink(url);
-  else window.open(url, '_blank');
+/* правка и удаление идут на мак: сайт статический, писать в репозиторий сам не может */
+let API_BASE = '';
+async function apiBase() {
+  if (API_BASE) return API_BASE;
+  try {
+    const r = await fetch(`${BASE}/api.json?v=${Date.now()}`);
+    API_BASE = (await r.json()).api || '';
+  } catch { API_BASE = ''; }
+  return API_BASE;
+}
+
+function toast(text, ms = 2600) {
+  document.querySelector('.toast')?.remove();
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = text;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+async function mutate(path, payload) {
+  const init = tg?.initData || '';
+  if (!init) throw new Error('правка работает только из Телеграма');
+  const base = await apiBase();
+  if (!base) throw new Error('сервер на маке недоступен (выключен или бот не запущен)');
+  const res = await fetch(`${base}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-TG-Init-Data': init },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+function enterEdit(id) {
+  const draft = {
+    title: state.recipe.title || '',
+    ingredients: (state.recipe.ingredients || []).map(x => ({ ...x })),
+    steps: (state.recipe.steps || []).map(s => ({ ...s })),
+  };
+
+  const draw = () => {
+    $('#app').innerHTML = `
+      <div class="edit">
+        <h1>Правка рецепта</h1>
+        <input class="edit-input" id="eTitle" value="${esc(draft.title)}" placeholder="Название">
+
+        <div class="edit-label">Ингредиенты</div>
+        <div id="eIngs">
+          ${draft.ingredients.map((x, i) => `
+            <div class="edit-row">
+              <input class="edit-input" data-ing-name="${i}" value="${esc(x.name || '')}" placeholder="что">
+              <input class="edit-input qty" data-ing-qty="${i}" value="${esc(x.qty || '')}" placeholder="сколько">
+              <button class="x" data-del-ing="${i}">✕</button>
+            </div>`).join('')}
+        </div>
+        <button class="add" id="addIng">+ ингредиент</button>
+
+        <div class="edit-label">Шаги</div>
+        <div id="eSteps">
+          ${draft.steps.map((s, i) => `
+            <div class="edit-row" style="align-items:flex-start">
+              <textarea class="edit-area" data-step="${i}" placeholder="шаг ${i + 1}">${esc(s.text || '')}</textarea>
+              <button class="x" data-del-step="${i}">✕</button>
+            </div>`).join('')}
+        </div>
+        <button class="add" id="addStep">+ шаг</button>
+
+        <div class="edit-actions">
+          <button class="cancel" id="eCancel">Отмена</button>
+          <button class="save" id="eSave">Сохранить</button>
+        </div>
+      </div>`;
+
+    $('#eTitle').addEventListener('input', e => { draft.title = e.target.value; });
+    document.querySelectorAll('[data-ing-name]').forEach(el =>
+      el.addEventListener('input', e => { draft.ingredients[+e.target.dataset.ingName].name = e.target.value; }));
+    document.querySelectorAll('[data-ing-qty]').forEach(el =>
+      el.addEventListener('input', e => { draft.ingredients[+e.target.dataset.ingQty].qty = e.target.value; }));
+    document.querySelectorAll('[data-step]').forEach(el =>
+      el.addEventListener('input', e => { draft.steps[+e.target.dataset.step].text = e.target.value; }));
+
+    document.querySelectorAll('[data-del-ing]').forEach(el =>
+      el.addEventListener('click', e => {
+        const i = +e.target.dataset.delIng;
+        if (draft.ingredients.length <= 1) { toast('Должен остаться хотя бы один ингредиент'); return; }
+        draft.ingredients.splice(i, 1); draw();
+      }));
+    document.querySelectorAll('[data-del-step]').forEach(el =>
+      el.addEventListener('click', e => {
+        const i = +e.target.dataset.delStep;
+        if (draft.steps.length <= 1) { toast('Должен остаться хотя бы один шаг'); return; }
+        draft.steps.splice(i, 1); draw();
+      }));
+
+    $('#addIng').addEventListener('click', () => { draft.ingredients.push({ name: '', qty: '' }); draw(); });
+    $('#addStep').addEventListener('click', () => { draft.steps.push({ text: '', at: '' }); draw(); });
+    $('#eCancel').addEventListener('click', () => render(state.recipe, id));
+
+    $('#eSave').addEventListener('click', async () => {
+      const btn = $('#eSave');
+      btn.textContent = 'Сохраняю…';
+      try {
+        const clean = {
+          title: draft.title.trim() || 'Без названия',
+          ingredients: draft.ingredients.filter(x => (x.name || '').trim()),
+          steps: draft.steps.filter(s => (s.text || '').trim())
+            .map((s, i) => ({ n: i + 1, text: s.text.trim(), at: s.at || '' })),
+        };
+        if (!clean.ingredients.length || !clean.steps.length) throw new Error('нужен хотя бы один ингредиент и один шаг');
+        await mutate('/api/save', { id, recipe: clean });
+        toast('Сохранено. Через полминуты обновится и на сайте.');
+        const fresh = await fetchJson(`${BASE}/recipes/${id}.json`, 2);
+        render(fresh, id);
+      } catch (err) {
+        btn.textContent = 'Сохранить';
+        toast('Не сохранилось: ' + err.message, 4000);
+      }
+    });
+  };
+
+  draw();
+}
+
+async function removeRecipe(id, title) {
+  const ask = `Удалить «${title}»?`;
+  const ok = tg?.showConfirm
+    ? await new Promise(res => tg.showConfirm(ask, res))
+    : window.confirm(ask);
+  if (!ok) return;
+  try {
+    await mutate('/api/delete', { id });
+    toast('Удалено');
+    location.hash = '#/';
+    route();
+  } catch (err) {
+    toast('Не удалилось: ' + err.message, 4000);
+  }
 }
 
 function render(r, id) {
@@ -286,8 +444,8 @@ function render(r, id) {
   });
 
   $('#srcBtn')?.addEventListener('click', () => openLink(r.source.url));
-  $('#editBtn')?.addEventListener('click', () => botDeepLink(`edit_${id}`));
-  $('#delBtn')?.addEventListener('click', () => botDeepLink(`del_${id}`));
+  $('#editBtn')?.addEventListener('click', () => enterEdit(id));
+  $('#delBtn')?.addEventListener('click', () => removeRecipe(id, r.title));
   updateBar();
 }
 
