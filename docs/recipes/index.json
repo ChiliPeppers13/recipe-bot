@@ -42,7 +42,7 @@
   "category": "Основное",
   "time_min": 30,
   "steps": 11,
-  "favorite": false,
+  "favorite": true,
   "image": "https://i.ytimg.com/vi_webp/jVNX5aIo-IA/maxresdefault.webp",
   "platform": "youtube",
   "added": 1793257825
