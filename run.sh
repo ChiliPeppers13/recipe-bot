@@ -3,6 +3,9 @@
 set -uo pipefail
 cd "$(dirname "$0")"
 
+# чужое окружение Python ломает импорты (например pydantic из другого venv)
+unset PYTHONPATH PYTHONHOME PYTHONSTARTUP VIRTUAL_ENV
+
 PY_SERVER="/Users/chilipeppers/.hermes/installs/702cdcf0f0d70170/environments/ed360d58e0d04daabcb8285d84e5c396/venv/bin/python"
 PY_BOT=".venv/bin/python"
 PORT=8891

@@ -18,7 +18,7 @@ def bot_token() -> str:
     raise SystemExit("нет токена")
 
 
-def make_init_data(user_id: int = 8919148247) -> str:
+def make_init_data(user_id: int = 184333195) -> str:
     pairs = {
         "auth_date": str(int(time.time())),
         "query_id": "AAHtest123",

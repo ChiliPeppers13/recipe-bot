@@ -52,7 +52,21 @@ BOT_USERNAME = os.getenv("BOT_USERNAME", "gabago0l_bot")
 
 # --- доступ: по умолчанию бот открыт; после /private — только белый список ---
 ACCESS_FILE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "allowed.json"
-ADMIN_ID = int(os.getenv("ADMIN_ID", "8919148247"))
+DEFAULT_ADMIN = 8919148247
+
+
+def admin_id() -> int:
+    """Владелец: ADMIN_ID из окружения → поле admin в файле доступа → старый дефолт."""
+    env = os.getenv("ADMIN_ID", "").strip()
+    if env.isdigit():
+        return int(env)
+    try:
+        d = json.loads(ACCESS_FILE.read_text(encoding="utf-8"))
+        if d.get("admin"):
+            return int(d["admin"])
+    except Exception:
+        pass
+    return DEFAULT_ADMIN
 
 
 def load_access() -> tuple[set[int], bool]:
@@ -63,14 +77,15 @@ def load_access() -> tuple[set[int], bool]:
             return set(int(x) for x in d.get("allowed", [])), bool(d.get("private", True))
         except Exception as e:                      # битый файл не должен молча открывать бота
             print(f"⚠️  не прочитал {ACCESS_FILE}: {e}", flush=True)
-            return {ADMIN_ID}, True
-    return {ADMIN_ID}, False
+            return {admin_id()}, True
+    return {admin_id()}, False
 
 
 def save_access(ids: set[int], private: bool) -> None:
     ACCESS_FILE.parent.mkdir(parents=True, exist_ok=True)
     ACCESS_FILE.write_text(
-        json.dumps({"allowed": sorted(ids), "private": private}, ensure_ascii=False, indent=1),
+        json.dumps({"private": private, "admin": admin_id(), "allowed": sorted(ids)},
+                   ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
 
@@ -92,7 +107,7 @@ class AccessGate(BaseMiddleware):
     async def __call__(self, handler, event: TelegramObject, data: dict):
         user = data.get("event_from_user")
         allowed, private = load_access()
-        if not private or user is None or user.id in allowed or user.id == ADMIN_ID:
+        if not private or user is None or user.id in allowed or user.id == admin_id():
             return await handler(event, data)
 
         # /id пускаем всегда: иначе владелец не узнает свой id, если ошибся в настройках
@@ -171,7 +186,7 @@ async def help_cmd(msg: Message):
 
 
 def _is_admin(msg: Message) -> bool:
-    return bool(msg.from_user) and msg.from_user.id == ADMIN_ID
+    return bool(msg.from_user) and msg.from_user.id == admin_id()
 
 
 @dp.message(Command("manage"))
@@ -212,7 +227,7 @@ async def private_cmd(msg: Message):
     if not _is_admin(msg):
         return
     ids, _ = load_access()
-    ids.add(ADMIN_ID)
+    ids.add(admin_id())
     save_access(ids, True)
     await msg.answer("🔒 Приватный режим включён. Доступ у: "
                      + ", ".join(f"<code>{i}</code>" for i in sorted(ids)))
@@ -467,7 +482,7 @@ async def main():
 
     # белый список: если файла нет — создаём и закрываем бота на админа
     if not ACCESS_FILE.exists():
-        save_access({ADMIN_ID}, True)
+        save_access({admin_id()}, True)
     ids, private = load_access()
     print(f"доступ: {'приватный' if private else 'открытый'} · {sorted(ids)}", flush=True)
 
