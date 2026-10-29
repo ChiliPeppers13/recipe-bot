@@ -7,14 +7,17 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
   :root{
-    --bg:#f2f2f7; --bg2:#ffffff; --card:#ffffff; --line:rgba(60,60,67,.16);
-    --text:#000000; --muted:#8e8e93; --accent:#007aff; --accent2:#007aff;
-    --ok:#34c759; --danger:#ff3b30; --r:14px; --nav:56px;
+    color-scheme: dark;
+    --bg:#0f1013; --bg2:#171a1f; --card:#1b1e24; --card2:#22262e;
+    --line:rgba(255,255,255,.09); --text:#f2f3f5; --muted:#8d94a0;
+    --accent:#f5a524; --accent2:#ffc258; --ok:#3ddc84; --danger:#ff6b5e;
+    --r:16px; --nav:56px;
   }
-  @media (prefers-color-scheme: dark){
-    :root{ --bg:#000000; --bg2:#1c1c1e; --card:#1c1c1e; --line:rgba(84,84,88,.5);
-           --text:#ffffff; --muted:#8e8e93; --accent:#0a84ff; --accent2:#0a84ff;
-           --ok:#30d158; --danger:#ff453a; }
+  html[data-theme="light"]{
+    color-scheme: light;
+    --bg:#f6f4f1; --bg2:#fffdfa; --card:#ffffff; --card2:#f3efea;
+    --line:rgba(60,50,40,.14); --text:#191512; --muted:#8a8177;
+    --accent:#d97706; --accent2:#b45309; --ok:#1f9d55; --danger:#dc2626;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);overflow-x:hidden;
@@ -51,18 +54,19 @@
   .chips::-webkit-scrollbar{display:none}
   .chip{flex:0 0 auto;padding:8px 13px;border-radius:100px;border:1px solid var(--line);
     background:var(--card);color:var(--muted);font-size:13.5px;font-weight:600;cursor:pointer}
-  .chip.on{background:rgba(0,122,255,.12);border-color:rgba(0,122,255,.4);color:var(--accent2)}
+  .chip.on{background:color-mix(in srgb, var(--accent) 16%, transparent);border-color:color-mix(in srgb, var(--accent) 45%, transparent);color:var(--accent2)}
   .empty{color:var(--muted);text-align:center;padding:40px 10px;font-size:14.5px;line-height:1.6}
   .sk{height:74px;border-radius:var(--r);background:var(--card);margin-bottom:10px;
     animation:pulse 1.3s ease-in-out infinite}
   @keyframes pulse{0%,100%{opacity:.45}50%{opacity:.9}}
 
   .list{display:flex;flex-direction:column;gap:10px}
-  .rc{display:flex;gap:12px;align-items:center;padding:10px;background:var(--card);
-    border:1px solid var(--line);border-radius:var(--r);text-decoration:none;color:var(--text)}
+  .rc{display:flex;gap:12px;align-items:center;padding:10px;color:var(--text);
+    background:linear-gradient(180deg, var(--card), var(--card2));
+    border:.5px solid var(--line);border-radius:var(--r);text-decoration:none}
   .rc:active{transform:scale(.99)}
   .thumb{width:62px;height:62px;flex:0 0 62px;border-radius:14px;overflow:hidden;
-    background:rgba(0,122,255,.10);display:grid;place-items:center;font-size:26px}
+    background:var(--card2);display:grid;place-items:center;font-size:26px}
   .thumb img{width:100%;height:100%;object-fit:cover}
   .rc-title{font-size:15.5px;font-weight:650;line-height:1.25;
     display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -169,15 +173,23 @@
 <body>
 <div id="app"></div>
 <div id="nav"></div>
-<script>window.__API__="https://agenda-requests-graduation-fascinating.trycloudflare.com";window.__INDEX__=[{"id": "ca92dc1a43", "title": "Гречневая каша с овощами", "emoji": "🍲", "category": "", "time_min": 40, "steps": 9, "favorite": false, "image": "", "platform": "youtube", "added": 1793258452}, {"id": "e52687e833", "title": "Пышный омлет с помидорами и сыром", "emoji": "🍳", "category": "Завтрак", "time_min": 10, "steps": 10, "favorite": false, "image": "https://i.ytimg.com/vi/VaMpLoUjCEI/maxresdefault.jpg", "platform": "youtube", "added": 1793257825}, {"id": "demo000001", "title": "Паста карбонара", "emoji": "🍝", "category": "Основное", "time_min": 25, "steps": 13, "favorite": false, "image": "https://i.ytimg.com/vi_webp/Uc_jAgchmXY/maxresdefault.webp", "platform": "youtube", "added": 1793257825}, {"id": "ddcdb6e5da", "title": "Паста Карбонара со сливками и беконом", "emoji": "🍝", "category": "Основное", "time_min": 30, "steps": 11, "favorite": false, "image": "https://i.ytimg.com/vi_webp/jVNX5aIo-IA/maxresdefault.webp", "platform": "youtube", "added": 1793257825}, {"id": "db542d00e4", "title": "Идеальные тонкие блинчики на молоке", "emoji": "🥞", "category": "Завтрак", "time_min": 40, "steps": 8, "favorite": false, "image": "https://i.ytimg.com/vi/b5q5n1wUE18/maxresdefault.jpg", "platform": "youtube", "added": 1793257825}, {"id": "792abdd09f", "title": "Спрэд из запечённых перцев", "emoji": "🫑", "category": "Закуска", "time_min": 30, "steps": 7, "favorite": false, "image": "https://instagram.ftbs6-2.fna.fbcdn.net/v/t51.82787-15/839441193_18632658439053165_8683421474511309551_n.jpg?stp=dst-jpg_e15_tt6&_nc_cat=102&_nc_map=urlgen_bucketless&ig_cache_key=NDAwMjcwMDkyNzI1NzEzNzAyMjE4NjMyNjU4NDM2MDUzMTY1.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkNMSVBTLnhwaWRzLjg0NC5zZHIudmlkZW9fZGVmYXVsdF9jb3Zlcl9mcmFtZS5DMyJ9&_nc_ohc=oXPQ3OD0hFEQ7kNvwFrRYS5&_nc_oc=Adr3ZvkXs3gWVLoYx3tevP7pXB9R68t2VnwDWNkv8nPn5tdTLFCKm3iUWHp-E3UIv8I&_nc_zt=23&_nc_ht=instagram.ftbs6-2.fna&_nc_gid=NFF_aLQUvwuxlV6cBXhZRA&_nc_ss=78689&oh=00_AQQ3hMdreBcA5xLAGWaUQCUasThfFZgl_zA7y3JY_C8Dww&oe=6AE81DA7", "platform": "instagram", "added": 1793257825}, {"id": "4aeadd5024", "title": "Куриные котлеты с луком и хлебом в молоке", "emoji": "🍗", "category": "Основное", "time_min": 30, "steps": 5, "favorite": false, "image": "https://instagram.ftbs6-2.fna.fbcdn.net/v/t51.82787-15/530853268_18517664698031291_6215447992417748722_n.jpg?stp=dst-jpg_e15_tt6&_nc_cat=107&_nc_map=urlgen_bucketless&ig_cache_key=MzY5NjkxNzA0ODYwNTIzNzM5ODE4NTE3NjY0NjkyMDMxMjkx.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkNMSVBTLnhwaWRzLjEyMzAuc2RyLnZpZGVvX2RlZmF1bHRfY292ZXJfZnJhbWUuQzMifQ%3D%3D&_nc_ohc=DQdmV4rBeEAQ7kNvwH4sZPk&_nc_oc=Adqqj1uDF4kyqJZ02gJ2zKR5WJDX0CbUo9PvV8cqzBJa6xMbMGsXEQMrRjLl-obF2W8&_nc_zt=23&_nc_ht=instagram.ftbs6-2.fna&_nc_gid=2EAAY9JVzJQJYYG4bCcAJQ&_nc_ss=78689&oh=00_AQTzEdgtzA7MBWz6xQUDsSOBlvSKREmwdf8MOfA_iYXfGg&oe=6AE82A10", "platform": "instagram", "added": 1793257825}];</script>
+<script>window.__API__="https://gossip-honors-shift-counsel.trycloudflare.com";window.__INDEX__=[{"id": "ca92dc1a43", "title": "Гречневая каша с овощами", "emoji": "🍲", "category": "", "time_min": 40, "steps": 9, "favorite": false, "image": "", "platform": "youtube", "added": 1793258452}, {"id": "e52687e833", "title": "Пышный омлет с помидорами и сыром", "emoji": "🍳", "category": "Завтрак", "time_min": 10, "steps": 10, "favorite": false, "image": "https://i.ytimg.com/vi/VaMpLoUjCEI/maxresdefault.jpg", "platform": "youtube", "added": 1793257825}, {"id": "demo000001", "title": "Паста карбонара", "emoji": "🍝", "category": "Основное", "time_min": 25, "steps": 13, "favorite": false, "image": "https://i.ytimg.com/vi_webp/Uc_jAgchmXY/maxresdefault.webp", "platform": "youtube", "added": 1793257825}, {"id": "ddcdb6e5da", "title": "Паста Карбонара со сливками и беконом", "emoji": "🍝", "category": "Основное", "time_min": 30, "steps": 11, "favorite": false, "image": "https://i.ytimg.com/vi_webp/jVNX5aIo-IA/maxresdefault.webp", "platform": "youtube", "added": 1793257825}, {"id": "db542d00e4", "title": "Идеальные тонкие блинчики на молоке", "emoji": "🥞", "category": "Завтрак", "time_min": 40, "steps": 8, "favorite": false, "image": "https://i.ytimg.com/vi/b5q5n1wUE18/maxresdefault.jpg", "platform": "youtube", "added": 1793257825}, {"id": "792abdd09f", "title": "Спрэд из запечённых перцев", "emoji": "🫑", "category": "Закуска", "time_min": 30, "steps": 7, "favorite": false, "image": "https://instagram.ftbs6-2.fna.fbcdn.net/v/t51.82787-15/839441193_18632658439053165_8683421474511309551_n.jpg?stp=dst-jpg_e15_tt6&_nc_cat=102&_nc_map=urlgen_bucketless&ig_cache_key=NDAwMjcwMDkyNzI1NzEzNzAyMjE4NjMyNjU4NDM2MDUzMTY1.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkNMSVBTLnhwaWRzLjg0NC5zZHIudmlkZW9fZGVmYXVsdF9jb3Zlcl9mcmFtZS5DMyJ9&_nc_ohc=oXPQ3OD0hFEQ7kNvwFrRYS5&_nc_oc=Adr3ZvkXs3gWVLoYx3tevP7pXB9R68t2VnwDWNkv8nPn5tdTLFCKm3iUWHp-E3UIv8I&_nc_zt=23&_nc_ht=instagram.ftbs6-2.fna&_nc_gid=NFF_aLQUvwuxlV6cBXhZRA&_nc_ss=78689&oh=00_AQQ3hMdreBcA5xLAGWaUQCUasThfFZgl_zA7y3JY_C8Dww&oe=6AE81DA7", "platform": "instagram", "added": 1793257825}, {"id": "4aeadd5024", "title": "Куриные котлеты с луком и хлебом в молоке", "emoji": "🍗", "category": "Основное", "time_min": 30, "steps": 5, "favorite": false, "image": "https://instagram.ftbs6-2.fna.fbcdn.net/v/t51.82787-15/530853268_18517664698031291_6215447992417748722_n.jpg?stp=dst-jpg_e15_tt6&_nc_cat=107&_nc_map=urlgen_bucketless&ig_cache_key=MzY5NjkxNzA0ODYwNTIzNzM5ODE4NTE3NjY0NjkyMDMxMjkx.3-ccb7-5&ccb=7-5&_nc_sid=58cdad&efg=eyJ2ZW5jb2RlX3RhZyI6IkNMSVBTLnhwaWRzLjEyMzAuc2RyLnZpZGVvX2RlZmF1bHRfY292ZXJfZnJhbWUuQzMifQ%3D%3D&_nc_ohc=DQdmV4rBeEAQ7kNvwH4sZPk&_nc_oc=Adqqj1uDF4kyqJZ02gJ2zKR5WJDX0CbUo9PvV8cqzBJa6xMbMGsXEQMrRjLl-obF2W8&_nc_zt=23&_nc_ht=instagram.ftbs6-2.fna&_nc_gid=2EAAY9JVzJQJYYG4bCcAJQ&_nc_ss=78689&oh=00_AQTzEdgtzA7MBWz6xQUDsSOBlvSKREmwdf8MOfA_iYXfGg&oe=6AE82A10", "platform": "instagram", "added": 1793257825}];</script>
 <script>
 const tg = window.Telegram?.WebApp;
 if (tg) { tg.ready(); tg.expand(); }
 
 /* берём цвета из темы Телеграма, чтобы приложение не спорило с ним */
+function applyTheme(mode) {
+  const m = mode || localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', m === 'light' ? 'light' : 'dark');
+  localStorage.setItem('theme', m);
+}
+applyTheme();
+
 function applyTelegramTheme() {
   const t = tg && tg.themeParams;
-  if (!t || !tg.initData) return;      // в обычном браузере доверяем CSS (prefers-color-scheme)
+  if (!t || !tg.initData) return;
+  if (localStorage.getItem('theme') && localStorage.getItem('theme') !== 'auto') return;
   const root = document.documentElement.style;
   const map = {
     bg_color: '--bg', secondary_bg_color: '--bg2', text_color: '--text',
@@ -304,7 +316,11 @@ window.addEventListener('hashchange', route);
 /* ─── 1. список ─── */
 async function loadMeta() {
   const meta = await api('/api/meta');
-  if (meta) { state.meta = meta; state.settings = meta.settings || {}; return; }
+  if (meta) {
+    state.meta = meta; state.settings = meta.settings || {};
+    if (meta.settings && meta.settings.theme) applyTheme(meta.settings.theme);
+    return;
+  }
   const all = await staticRecipes();
   const cats = {};
   all.forEach(r => { if (r.category) cats[r.category] = (cats[r.category] || 0) + 1; });
@@ -854,6 +870,12 @@ async function renderSettings() {
     <h1>Настройки</h1>
     <div class="sub">Сохраняются в базе на маке</div>
 
+    <h2>Вид</h2>
+    <div class="row" style="gap:8px;padding:4px 0">
+      <button class="chip ${s.theme === 'light' ? 'on' : ''}" id="thLight">Светлая</button>
+      <button class="chip ${s.theme !== 'light' ? 'on' : ''}" id="thDark">Тёмная</button>
+    </div>
+
     <h2>Готовка</h2>
     <div class="row" style="justify-content:space-between;padding:8px 0">
       <div class="grow">Порций по умолчанию</div>
@@ -885,12 +907,21 @@ async function renderSettings() {
     <div style="height:20px"></div>
   </div>`;
 
+  let themeChoice = s.theme === 'light' ? 'light' : 'dark';
+  const paintTheme = () => {
+    document.getElementById('thLight').classList.toggle('on', themeChoice === 'light');
+    document.getElementById('thDark').classList.toggle('on', themeChoice !== 'light');
+  };
+  document.getElementById('thLight').onclick = () => { themeChoice = 'light'; applyTheme('light'); paintTheme(); };
+  document.getElementById('thDark').onclick = () => { themeChoice = 'dark'; applyTheme('dark'); paintTheme(); };
+
   document.getElementById('saveSet').onclick = async () => {
     const patch = {
       default_servings: document.getElementById('sServ').value.trim() || '2',
       max_time: document.getElementById('sTime').value.trim(),
       exclude: JSON.stringify(document.getElementById('sExcl').value.split(',').map(x => x.trim()).filter(Boolean)),
       allergens: JSON.stringify(document.getElementById('sAllerg').value.split(',').map(x => x.trim()).filter(Boolean)),
+      theme: themeChoice,
     };
     try {
       state.settings = (await post('/api/settings', { patch })) || { ...s, ...patch };
