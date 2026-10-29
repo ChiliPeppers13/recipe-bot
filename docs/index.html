@@ -793,7 +793,6 @@ async function renderSettings() {
   drawNav('settings');
   const s = (await api('/api/settings')) || state.settings || {};
   const stats = (state.meta && state.meta.stats) || {};
-  let ai = s.ai_suggestions === '1';
   const parse = v => { try { return JSON.parse(v || '[]').join(', '); } catch { return ''; } };
 
   document.getElementById('app').innerHTML = `<div class="page">
@@ -817,11 +816,9 @@ async function renderSettings() {
     <input class="input" id="sAllerg" value="${esc(parse(s.allergens))}" placeholder="орехи, лактоза">
 
     <h2>ИИ</h2>
-    <div class="row" style="padding:6px 0;align-items:flex-start">
-      <div class="grow">Предлагать новые рецепты через ИИ
-        <div class="sub">Выключено — работает только твоя книга, запросы к модели не тратятся.</div>
-      </div>
-      <button class="btn ${ai ? 'primary' : ''}" id="aiBtn">${ai ? 'Вкл' : 'Выкл'}</button>
+    <div class="note">
+      Модель нужна только при импорте ссылки или текста — превратить расшифровку в рецепт.
+      Поиск, фильтры, избранное, план, покупки и правка работают без неё.
     </div>
 
     <button class="btn primary" id="saveSet" style="width:100%;margin-top:16px">Сохранить</button>
@@ -833,20 +830,12 @@ async function renderSettings() {
     <div style="height:20px"></div>
   </div>`;
 
-  document.getElementById('aiBtn').onclick = () => {
-    ai = !ai;
-    const b = document.getElementById('aiBtn');
-    b.textContent = ai ? 'Вкл' : 'Выкл';
-    b.classList.toggle('primary', ai);
-  };
-
   document.getElementById('saveSet').onclick = async () => {
     const patch = {
       default_servings: document.getElementById('sServ').value.trim() || '2',
       max_time: document.getElementById('sTime').value.trim(),
       exclude: JSON.stringify(document.getElementById('sExcl').value.split(',').map(x => x.trim()).filter(Boolean)),
       allergens: JSON.stringify(document.getElementById('sAllerg').value.split(',').map(x => x.trim()).filter(Boolean)),
-      ai_suggestions: ai ? '1' : '0',
     };
     try {
       state.settings = (await post('/api/settings', { patch })) || { ...s, ...patch };
