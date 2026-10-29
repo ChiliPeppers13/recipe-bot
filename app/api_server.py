@@ -171,7 +171,17 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(obj, ensure_ascii=False).encode())
 
     def _html(self):
-        self._send(200, WEBAPP.read_bytes(), "text/html; charset=utf-8")
+        index = [{
+            "id": r["id"], "title": r["title"], "emoji": r.get("emoji"),
+            "category": r.get("category"), "time_min": r.get("time_min"),
+            "steps": len(r.get("steps") or []), "favorite": bool(r.get("favorite")),
+            "image": r.get("image") or "", "added": int(r.get("created") or 0),
+        } for r in db.export_rows()]
+        seed = ('<script>window.__API__=""' + ';window.__INDEX__='
+                + json.dumps(index, ensure_ascii=False) + ';</script>')
+        html = WEBAPP.read_text(encoding="utf-8").replace(
+            '<div id="nav"></div>', '<div id="nav"></div>\n' + seed)
+        self._send(200, html.encode(), "text/html; charset=utf-8")
 
     def _who(self) -> dict | None:
         user = verify_init_data(self.headers.get("X-TG-Init-Data") or "")

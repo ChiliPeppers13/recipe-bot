@@ -35,10 +35,6 @@ def build() -> int:
     DOCS.mkdir(exist_ok=True)
     RECIPES.mkdir(parents=True, exist_ok=True)
 
-    html = WEBAPP.read_text(encoding="utf-8")
-    (DOCS / "index.html").write_text(html, encoding="utf-8")
-    (DOCS / "404.html").write_text(html, encoding="utf-8")      # прямые ссылки /r/<id>
-
     for old in RECIPES.glob("*.json"):
         old.unlink()
 
@@ -65,6 +61,20 @@ def build() -> int:
     (RECIPES / "index.json").write_text(
         json.dumps(index, ensure_ascii=False, indent=1), encoding="utf-8"
     )
+
+    # вшиваем индекс и адрес API прямо в страницу: экран рисуется без двух лишних запросов
+    api_for_seed = os.getenv("API_BASE", "").rstrip("/")
+    if not api_for_seed and (DOCS / "api.json").exists():   # ручной запуск: берём прошлый адрес
+        try:
+            api_for_seed = (json.loads((DOCS / "api.json").read_text(encoding="utf-8")).get("api") or "").rstrip("/")
+        except Exception:
+            pass
+    seed = ('<script>window.__API__=' + json.dumps(api_for_seed) +
+            ';window.__INDEX__=' + json.dumps(index, ensure_ascii=False) + ';</script>')
+    html = WEBAPP.read_text(encoding="utf-8").replace('<div id="nav"></div>',
+                                                      '<div id="nav"></div>\n' + seed)
+    (DOCS / "index.html").write_text(html, encoding="utf-8")
+    (DOCS / "404.html").write_text(html, encoding="utf-8")      # прямые ссылки /r/<id>
     if index:
         (RECIPES / "latest.json").write_text(
             json.dumps(index[0], ensure_ascii=False), encoding="utf-8"

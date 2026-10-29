@@ -205,7 +205,10 @@ const state = {
   recipe: null, id: null, servings: null, filters: {q:'', category:'', favorite:false, max_time:0, have:''}
 };
 
-let API_BASE = null;
+const SEED_API = window.__API__ || '';
+const SEED_INDEX = Array.isArray(window.__INDEX__) ? window.__INDEX__ : null;
+
+let API_BASE = SEED_API || null;
 async function apiBase() {
   if (API_BASE !== null) return API_BASE;
   try {
@@ -249,6 +252,17 @@ async function staticRecipe(id) {
     const r = await fetch(`${BASE}/recipes/${id}.json?v=${Date.now()}`);
     return r.ok ? await r.json() : null;
   } catch { return null; }
+}
+
+
+/* обложки: настоящие maxres по 100–130 КБ на превью 62 px — это главный тормоз */
+function thumbSmall(url) {
+  if (!url) return '';
+  return url.replace(/\/(maxresdefault|sddefault|hqdefault|mqdefault)\.(jpg|webp)$/i, '/mqdefault.jpg');
+}
+function thumbHero(url) {
+  if (!url) return '';
+  return url.replace(/\/(maxresdefault|sddefault|hqdefault|mqdefault)\.(jpg|webp)$/i, '/sddefault.jpg');
 }
 
 const NAV = [
@@ -344,7 +358,15 @@ async function loadList() {
   const have = (f.have || '').trim();
   if (have) return renderSuggest(have);
 
+  const clean = !f.q && !f.category && !f.favorite && !f.max_time;
+  const box = document.getElementById('list');
+  if (clean && SEED_INDEX && SEED_INDEX.length && box) {
+    box.innerHTML = SEED_INDEX.map(cardHtml).join('');     // мгновенный первый экран
+    bindFav();
+  }
+
   let items = await api(`/api/recipes?q=${encodeURIComponent(f.q)}&category=${encodeURIComponent(f.category)}&favorite=${f.favorite ? 1 : 0}&max_time=${f.max_time || 0}`);
+  if (!items && SEED_INDEX && clean) items = SEED_INDEX;
   if (!items) {
     items = await staticRecipes();
     if (f.q) items = items.filter(r => (r.title + ' ' + (r.ingredients || []).join(' ')).toLowerCase().includes(f.q.toLowerCase()));
@@ -353,13 +375,16 @@ async function loadList() {
     if (f.max_time) items = items.filter(r => (r.time_min || 999) <= f.max_time);
   }
 
-  const box = document.getElementById('list');
   if (!box) return;
   if (!items.length) {
     box.innerHTML = `<div class="empty">Ничего не нашлось.<br>Измени поиск или пришли боту ссылку на новое блюдо.</div>`;
     return;
   }
   box.innerHTML = items.map(cardHtml).join('');
+  bindFav();
+}
+
+function bindFav() {
   $$('.fav').forEach(b => b.onclick = async e => {
     e.preventDefault(); e.stopPropagation();
     try {
@@ -372,7 +397,7 @@ async function loadList() {
 }
 
 function cardHtml(r) {
-  const thumb = r.image || '';
+  const thumb = thumbSmall(r.image);
   return `<a class="rc" href="#r/${r.id}">
     <div class="thumb">${thumb ? `<img src="${esc(thumb)}" loading="lazy" alt="">` : esc(r.emoji || '🍽')}</div>
     <div class="grow">
@@ -398,7 +423,7 @@ async function renderSuggest(have) {
   }
   box.innerHTML = `<h2 style="margin-top:0">Что можно приготовить</h2>` + items.map(s => `
     <a class="rc" href="#r/${s.id}">
-      <div class="thumb">${s.image ? `<img src="${esc(s.image)}" loading="lazy">` : esc(s.emoji || '🍽')}</div>
+      <div class="thumb">${s.image ? `<img src="${esc(thumbSmall(s.image))}" loading="lazy">` : esc(s.emoji || '🍽')}</div>
       <div class="grow">
         <div class="rc-title">${esc(s.title)}</div>
         <div class="rc-meta"><span>есть: ${esc((s.matched || []).join(', '))}</span></div>
@@ -444,7 +469,7 @@ function drawRecipe() {
   const r = state.recipe;
   const base = r.servings || Number(state.settings.default_servings || 2);
   const ratio = state.servings && base ? state.servings / base : 1;
-  const img = r.image || '';
+  const img = thumbHero(r.image);
   const src = r.source || {};
 
   document.getElementById('app').innerHTML = `<div class="page">
