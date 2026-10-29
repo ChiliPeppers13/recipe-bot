@@ -176,7 +176,7 @@ if (tg) { tg.ready(); tg.expand(); }
 /* берём цвета из темы Телеграма, чтобы приложение не спорило с ним */
 function applyTelegramTheme() {
   const t = tg && tg.themeParams;
-  if (!t) return;
+  if (!t || !tg.initData) return;      // в обычном браузере доверяем CSS (prefers-color-scheme)
   const root = document.documentElement.style;
   const map = {
     bg_color: '--bg', secondary_bg_color: '--bg2', text_color: '--text',
