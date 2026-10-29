@@ -1,16 +1,11 @@
-"""Публикация мини-аппа и рецептов на GitHub Pages.
+"""Сборка статичной копии сайта из базы: docs/ → GitHub Pages.
 
-    python scripts/publish.py            # собрать docs/ + закоммитить + запушить
+Рецепты хранятся в SQLite (data/recipes.db), а на сайт выгружается снимок —
+поэтому читать книгу можно и с выключенным маком. Правки, план и покупки
+идут через API на маке.
 
-Что делает:
-1. копирует app/webapp/index.html  → docs/index.html и docs/404.html
-   (404.html нужен, чтобы прямые ссылки /r/<id> открывались — GitHub Pages
-   не умеет SPA-роутинг, поэтому неизвестный путь отдаёт 404.html, а он у нас тот же экран)
-2. перекладывает все рецепты из локального хранилища в docs/recipes/<id>.json
-3. обновляет docs/recipes/latest.json
-4. коммитит и пушит, если есть remote
-
-Хранилище: ~/.hermes/cache/recipe-bot/store/
+    python scripts/publish.py            # собрать + закоммитить + запушить
+    python scripts/publish.py --no-push  # только собрать
 """
 
 from __future__ import annotations
@@ -18,106 +13,105 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
-WEBAPP = ROOT / "app" / "webapp" / "index.html"
+sys.path.insert(0, str(ROOT / "app"))
+
+import db  # noqa: E402
+
+WEBAPP = ROOT / "app" / "webapp" / "app.html"
 DOCS = ROOT / "docs"
 RECIPES = DOCS / "recipes"
-STORE = Path.home() / ".hermes" / "cache" / "recipe-bot" / "store"
 
 
 def build() -> int:
-    """Пересобрать статичный сайт. Возвращает число рецептов."""
+    """Пересобрать docs/. Возвращает число рецептов."""
+    db.init()
+    rows = db.export_rows()
+
+    DOCS.mkdir(exist_ok=True)
     RECIPES.mkdir(parents=True, exist_ok=True)
 
     html = WEBAPP.read_text(encoding="utf-8")
     (DOCS / "index.html").write_text(html, encoding="utf-8")
-    (DOCS / "404.html").write_text(html, encoding="utf-8")   # прямые ссылки /r/<id>
+    (DOCS / "404.html").write_text(html, encoding="utf-8")      # прямые ссылки /r/<id>
 
-    # чистим старые файлы рецептов, чтобы не копить мусор
     for old in RECIPES.glob("*.json"):
         old.unlink()
 
-    files = sorted(STORE.glob("*.json"), key=lambda p: p.stat().st_mtime)
-    for src in files:
-        shutil.copy2(src, RECIPES / src.name)
-
-    if files:
-        shutil.copy2(files[-1], RECIPES / "latest.json")
-
-    # индекс для «книги рецептов»: новые сверху
-    items = []
-    for src in files:
-        try:
-            r = json.loads(src.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        s = r.get("source") or {}
-        items.append({
-            "id": src.stem,
-            "title": r.get("title") or "Без названия",
+    index = []
+    for r in rows:
+        public = dict(r)
+        public.pop("transcript", None)          # расшифровка остаётся только в базе
+        (RECIPES / f"{r['id']}.json").write_text(
+            json.dumps(public, ensure_ascii=False), encoding="utf-8"
+        )
+        index.append({
+            "id": r["id"],
+            "title": r["title"],
             "emoji": r.get("emoji") or "🍽",
+            "category": r.get("category") or "",
             "time_min": r.get("time_min"),
             "steps": len(r.get("steps") or []),
-            "platform": s.get("platform") or "",
-            "thumb": s.get("thumbnail") or "",
-            "added": int(src.stat().st_mtime),
+            "favorite": bool(r.get("favorite")),
+            "image": r.get("image") or "",
+            "platform": (r.get("source") or {}).get("platform", ""),
+            "added": int(r.get("created") or 0),
         })
-    items.sort(key=lambda x: x["added"], reverse=True)
+
     (RECIPES / "index.json").write_text(
-        json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8"
+        json.dumps(index, ensure_ascii=False, indent=1), encoding="utf-8"
     )
+    if index:
+        (RECIPES / "latest.json").write_text(
+            json.dumps(index[0], ensure_ascii=False), encoding="utf-8"
+        )
 
-    # адрес API для мини-аппа (туннель меняется при каждом запуске)
+    # адрес API: если в окружении пусто — сохраняем тот, что уже был (ручной запуск
+    # publish.py не должен обнулять рабочую ссылку на туннель)
+    api_file = DOCS / "api.json"
     api_base = os.getenv("API_BASE", "").rstrip("/")
-    (DOCS / "api.json").write_text(
-        json.dumps({"api": api_base}, ensure_ascii=False), encoding="utf-8"
-    )
+    if not api_base and api_file.exists():
+        try:
+            api_base = (json.loads(api_file.read_text(encoding="utf-8")).get("api") or "").rstrip("/")
+        except Exception:
+            api_base = ""
+    api_file.write_text(json.dumps({"api": api_base}, ensure_ascii=False), encoding="utf-8")
+    return len(index)
 
-    return len(files)
 
-
-def git(*args: str, check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True, check=False)
+def git(*args: str) -> subprocess.CompletedProcess:
+    return subprocess.run(["git", *args], cwd=ROOT, capture_output=True, text=True)
 
 
 def publish(message: str) -> bool:
     git("add", "docs")
-    staged = git("diff", "--cached", "--quiet")
-    if staged.returncode == 0:
-        print("нечего публиковать — изменений нет")
+    if git("diff", "--cached", "--quiet").returncode == 0:
         return False
-
-    git("commit", "-m", message, check=False)
-    remote = git("remote").stdout.strip()
-    if not remote:
-        print("⚠️  нет git remote — коммит сделан локально, пуш пропущен")
+    git("-c", "user.email=local", "-c", "user.name=local", "commit", "-m", message)
+    if not git("remote").stdout.strip():
+        print("⚠️  нет git remote — коммит локальный")
         return False
-
-    push = git("push", "origin", "HEAD", check=False)
+    push = git("push", "origin", "HEAD")
     if push.returncode != 0:
-        print("❌ пуш не прошёл:\n" + (push.stderr or push.stdout)[-400:])
+        print("❌ пуш не прошёл:", (push.stderr or push.stdout)[-300:])
         return False
-
-    branch = git("rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
-    print(f"✅ запушено в origin/{branch}")
     return True
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--no-push", action="store_true", help="только собрать docs/, без git")
-    ap.add_argument("-m", "--message", default="recipe: publish site")
+    ap.add_argument("--no-push", action="store_true")
+    ap.add_argument("-m", "--message", default="publish site")
     args = ap.parse_args()
 
-    count = build()
-    print(f"собрано: docs/ · рецептов: {count}")
-    if args.no_push:
-        return
-    publish(args.message)
+    n = build()
+    print(f"собрано: docs/ · рецептов: {n}")
+    if not args.no_push:
+        print("✅ запушено" if publish(args.message) else "без изменений")
 
 
 if __name__ == "__main__":

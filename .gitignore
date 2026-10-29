@@ -9,3 +9,10 @@ demo-run/
 bot.log
 server.log
 audio16k.wav
+
+# личные данные и логи
+data/
+backups/
+logs/
+*.log
+

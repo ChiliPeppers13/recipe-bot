@@ -11,6 +11,7 @@ mkdir -p logs
 
 # подчищаем прошлые запуски (шаблон по полному пути — чтобы не задеть чужие процессы)
 pkill -f "$PWD/app/server.py" 2>/dev/null
+pkill -f "$PWD/app/api_server.py" 2>/dev/null
 pkill -f "$PWD/app/bot.py" 2>/dev/null
 pkill -f "cloudflared tunnel --url http://127.0.0.1:$PORT" 2>/dev/null
 sleep 1
@@ -32,7 +33,7 @@ fi
 echo "🔌 API для правок: $URL"
 export API_BASE="$URL"
 
-"$PY_SERVER" "$PWD/app/server.py" --port "$PORT" > logs/server.log 2>&1 &
+"$PY_SERVER" "$PWD/app/api_server.py" --port "$PORT" > logs/server.log 2>&1 &
 SERVER_PID=$!
 
 # публикуем адрес API в api.json, чтобы экран знал, куда отправлять правки

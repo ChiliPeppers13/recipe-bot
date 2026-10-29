@@ -278,7 +278,7 @@ async def on_text(msg: Message):
     bare = re.search(r"https?://\S+", text)
 
     if link:
-        await _process(msg, "/api/recipe", {"url": link.group(0)},
+        await _process(msg, "/api/import", {"url": link.group(0)},
                        "⏳ Слушаю видео и разбираю рецепт…")
     elif bare:
         await _process(msg, "/api/page", {"url": bare.group(0)},
@@ -317,6 +317,13 @@ async def _process(msg: Message, endpoint: str, payload: dict, status_text: str)
 
     if "error" in data:
         await status.edit_text(f"😔 {data['error'][:400]}")
+        return
+
+    if data.get("duplicate"):
+        await status.edit_text(
+            f"📚 «{data.get('title')}» уже есть в книге — второй раз не добавляю.",
+            reply_markup=_kb_recipe(data["id"]) if WEBAPP_URL else None,
+        )
         return
 
     rid = data["id"]
